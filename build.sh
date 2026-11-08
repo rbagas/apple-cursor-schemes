@@ -9,6 +9,7 @@
 #   ./build.sh --scheme Nord            one scheme
 #   ./build.sh --platforms linux        one platform
 #   ./build.sh --list                   show the schemes
+#   ./build.sh --jobs 4                 limit parallel renders (default: CPU count)
 #   ./build.sh --output /tmp/out        somewhere other than dist/
 #
 # Needs: bash, awk, sed, rsvg-convert (librsvg2-tools), xcursorgen.
@@ -20,6 +21,7 @@ platforms="linux windows"
 wanted=()
 windows_profile="win_rg"
 canvas=256
+jobs=$(nproc 2>/dev/null || echo 4)
 # Windows plays an .ani in jiffies (1/60 s). Upstream ships a 20 ms delay as 2
 # jiffies, so mirror that instead of the config's win_delay.
 ani_rate=2
@@ -29,7 +31,7 @@ ani_target=64
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 say() { printf '  %s\n' "$*"; }
 
-usage() { sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -40,14 +42,16 @@ while [ $# -gt 0 ]; do
     --output) [ $# -ge 2 ] || die '--output needs a value'; output="$2"; shift 2 ;;
     --output=*) output="${1#*=}"; shift ;;
     --windows-profile) windows_profile="win_${2#win_}"; shift 2 ;;
+    --jobs) [ $# -ge 2 ] || die '--jobs needs a value'; jobs="$2"; shift 2 ;;
+    --jobs=*) jobs="${1#*=}"; shift ;;
     --list) awk -F'|' '/^[^#[:space:]]/ {printf "%-18s fill %-8s outline %s\n", $1, $2, $3}' "$here/schemes.conf"; exit 0 ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1 (try --help)" ;;
   esac
 done
 
-for tool in rsvg-convert xcursorgen awk sed; do
-  command -v "$tool" >/dev/null 2>&1 || die "missing $tool (Fedora: librsvg2-tools xcursorgen; Debian: librsvg2-bin x11-apps; Arch: librsvg xorg-xcursorgen)"
+for tool in rsvg-convert xcursorgen awk sed xargs; do
+  command -v "$tool" >/dev/null 2>&1 || die "missing $tool (Fedora: librsvg2-tools xcursorgen; Debian: librsvg2-bin xcursorgen; Arch: librsvg xorg-xcursorgen)"
 done
 
 schemes() { awk -F'|' '/^[^#[:space:]]/' "$here/schemes.conf"; }
@@ -97,9 +101,6 @@ manifest_x11() {
     /^[ \t]*png[ \t]*=/ { png = quoted($0); next }
     /^[ \t]*x_hotspot[ \t]*=/ { hx = trim(substr($0, index($0, "=") + 1)); next }
     /^[ \t]*y_hotspot[ \t]*=/ { hy = trim(substr($0, index($0, "=") + 1)); next }
-    /^[ \t]*x11_sizes[ \t]*=/ { sizes = $0; if ($0 !~ /\]/) collecting = 2; next }
-    /^[ \t]*x11_delay[ \t]*=/ { delay = trim(substr($0, index($0, "=") + 1)); next }
-    collecting == 2 { sizes = sizes " " $0; if ($0 ~ /\]/) collecting = 0 }
     END {
       if (section ~ /^cursors\./ && section != "cursors.fallback_settings")
         print name "|" png "|" hx "|" hy "|" quoted(syms)
@@ -112,7 +113,6 @@ manifest_windows() {
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function quoted(s, out) {
       out = ""
-      # TOML strings are single quoted here; \047 is an apostrophe inside awk.
       while (match(s, /[\047"][^\047"]*[\047"]/)) {
         out = out (out == "" ? "" : ",") substr(s, RSTART + 1, RLENGTH - 2)
         s = substr(s, RSTART + RLENGTH)
@@ -139,74 +139,134 @@ manifest_windows() {
   ' "$1"
 }
 
-# Fallback values from the [cursors.fallback_settings] section.
-fallback_x11_sizes() { awk -F'[][, ]+' '/^\[/ { f = ($0 ~ /fallback_settings/) } f && /^[ \t]*x11_sizes/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+$/) printf "%s ", $i }' "$1"; }
-fallback_x11_hotspot() {
-  awk -v key="$2" '/^\[/ { f = ($0 ~ /fallback_settings/) } f && $1 == key { print $3; exit }' "$1"
+# Fallback values, read only from [cursors.fallback_settings].
+fallback_sizes() {
+  awk -F'[][, ]+' -v key="$2" '/^\[/ { f = ($0 ~ /fallback_settings/) }
+    f && $0 ~ key { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+$/) printf "%s ", $i }' "$1"
 }
-fallback_win_sizes() { awk -F'[][, ]+' '/^\[/ { f = ($0 ~ /fallback_settings/) } f && /^[ \t]*win_sizes/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+$/) printf "%s ", $i }' "$1"; }
-
-# --------------------------------------------------------------- SVG renderer
-# render <svg> <size> <fill> <out.png>
-render() {
-  local svg="$1" size="$2" fill="$3" out="$4" tmp
-  tmp="$work/$(basename "$svg").$$.svg"
-  sed "s/#00FF00/$fill/Ig; s/#0000FF/$outline/Ig" "$svg" > "$tmp"
-  rsvg-convert -w "$size" -h "$size" -o "$out" "$tmp"
-  rm -f "$tmp"
+fallback_number() {
+  awk -v key="$2" '/^\[/ { f = ($0 ~ /fallback_settings/) }
+    f && $1 == key { print $3; exit }' "$1"
 }
 
-# frames <png-spec> -> newline separated SVG paths
+# frames_for <png-spec>: newline separated SVG paths, animation order
 frames_for() {
-  local spec="$1"
-  case "$spec" in
-    *-\*.png)
-      local dir="$here/svg/${spec%%-\**}"
-      find "$dir" -maxdepth 1 -name '*.svg' | sort
-      ;;
-    *) printf '%s\n' "$here/svg/${spec%.png}.svg" ;;
+  case "$1" in
+    *-\*.png) find "$here/svg/${1%%-\**}" -maxdepth 1 -name '*.svg' | sort ;;
+    *) printf '%s\n' "$here/svg/${1%.png}.svg" ;;
   esac
 }
 
-# ------------------------------------------------------------------- XCursor
-# x_hotspot <hotspot> <size>: upstream's plain floor formula
+# ------------------------------------------------------------------- hotspots
 x_hotspot() { printf '%s' $(( $1 * $2 / canvas )); }
-# win_hotspot <hotspot> <size>: upstream's (value - 1) // 256 formula
 win_hotspot() { printf '%s' $(( ($1 * $2 - 1) / canvas )); }
 
+# --------------------------------------------------------------------- render
+# One pass over the whole scheme: colour-substituted SVGs are written once, then
+# every needed (svg, size) pair is rendered in parallel, deduplicated by path.
+# XCursor and Windows then share the results, which is why this is one pass.
+plan_scheme() {
+  local name="$1" fill="$2" outline="$3"
+  local dir="$work/$name" svg_out png_out
+  svg_out="$dir/svg"; png_out="$dir/png"
+  mkdir -p "$svg_out" "$png_out"
+  : > "$dir/tasks"
+  : > "$dir/plan.linux"
+  : > "$dir/plan.windows"
+
+  local x11="$here/configs/x.build.toml" win="$here/configs/$windows_profile.build.toml"
+  local x11_sizes win_sizes cursor png hx hy syms role override frame index
+  x11_sizes=$(fallback_sizes "$x11" x11_sizes)
+  win_sizes=$(fallback_sizes "$win" win_sizes)
+
+  local -A seen=()
+  plan_one() { # cursor png hx hy sizes-list animated-size
+    local spec="$1" png="$2" spec_hx="$3" spec_hy="$4" list="$5" fixed="$6"
+    local -a glyphs=() sizes=()
+    mapfile -t glyphs < <(frames_for "$png")
+    local svg size n
+    for n in "${!glyphs[@]}"; do
+      svg="$svg_out/$spec-$n.svg"
+      if [ ! -f "$svg" ]; then
+        sed "s/#00FF00/$fill/Ig; s/#0000FF/$outline/Ig" "${glyphs[$n]}" > "$svg"
+      fi
+    done
+    if [ -n "$fixed" ]; then sizes=("$fixed"); else read -ra sizes <<< "$list"; fi
+    local out
+    for size in "${sizes[@]}"; do
+      for n in "${!glyphs[@]}"; do
+        out="$png_out/$spec-$n-$size.png"
+        if [ -z "${seen[$out]:-}" ]; then
+          seen[$out]=1
+          printf '%s\0%s\0%s\0' "$svg_out/$spec-$n.svg" "$size" "$out" >> "$dir/tasks"
+        fi
+      done
+    done
+  }
+
+  while IFS='|' read -r cursor png hx hy syms; do
+    [ -n "$cursor" ] || continue
+    printf '%s|%s|%s|%s|%s\n' "$cursor" "$png" "${hx:-$(fallback_number "$x11" x_hotspot)}" \
+      "${hy:-$(fallback_number "$x11" y_hotspot)}" "$syms" >> "$dir/plan.linux"
+    plan_one "$cursor" "$png" "${hx:-$(fallback_number "$x11" x_hotspot)}" \
+      "${hy:-$(fallback_number "$x11" y_hotspot)}" "$x11_sizes" ""
+  done < <(manifest_x11 "$x11")
+
+  while IFS='|' read -r cursor png hx hy role override; do
+    [ -n "$cursor" ] || continue
+    [ -n "$role" ] || continue
+    printf '%s|%s|%s|%s|%s|%s\n' "$cursor" "$png" "${hx:-$(fallback_number "$win" x_hotspot)}" \
+      "${hy:-$(fallback_number "$win" y_hotspot)}" "$role" "$override" >> "$dir/plan.windows"
+    # An .ani frame is a single image: upstream pins those to 65 px.
+    if [ -n "$override" ]; then
+      plan_one "$cursor" "$png" "${hx:-$(fallback_number "$win" x_hotspot)}" \
+        "${hy:-$(fallback_number "$win" y_hotspot)}" "" "${override%% *}"
+    else
+      plan_one "$cursor" "$png" "${hx:-$(fallback_number "$win" x_hotspot)}" \
+        "${hy:-$(fallback_number "$win" y_hotspot)}" "$win_sizes" ""
+    fi
+  done < <(manifest_windows "$win")
+}
+
+render_scheme() {
+  local name="$1" dir="$work/$1"
+  local count
+  count=$(tr -cd '\0' < "$dir/tasks" | wc -c)
+  count=$(( count / 3 ))
+  [ "$count" -gt 0 ] || { say 'nothing to render'; return; }
+  tr '\0' '\n' < "$dir/tasks" | xargs -d '\n' -n 3 -P "$jobs" "$here/lib/render.sh"
+  say "rendered $count images with $jobs parallel jobs"
+}
+
+# ------------------------------------------------------------------- XCursor
 build_linux() {
-  local name="$1" fill="$2" comment="${3:-}" theme="AppleCursor-$1"
-  local target="$output/linux/$theme" x11="$here/configs/x.build.toml"
-  local sizes delay hx hy syms frame size hot_x hot_y
-  mapfile -t sizes <<< "$(fallback_x11_sizes "$x11" | tr ' ' '\n' | sed '/^$/d')"
-  hx=$(fallback_x11_hotspot "$x11" x_hotspot)
-  hy=$(fallback_x11_hotspot "$x11" y_hotspot)
-  delay=$(awk '/^\[/ { f = ($0 ~ /fallback_settings/) } f && $1 == "x11_delay" { print $3; exit }' "$x11")
+  local name="$1" theme="AppleCursor-$1" comment="$2"
+  local dir="$work/$1" target="$output/linux/$theme"
+  local x11="$here/configs/x.build.toml"
+  local sizes delay cursor png hx hy syms size hot_x hot_y n frames
+
+  sizes=($(fallback_sizes "$x11" x11_sizes))
+  delay=$(fallback_number "$x11" x11_delay)
 
   rm -rf "$target"; mkdir -p "$target/cursors"
-  local count=0
-  while IFS='|' read -r name_spec png spec_hx spec_hy syms; do
-    [ -n "$name_spec" ] || continue
-    local cfg="$work/x11-$name_spec.conf" index=0
+  while IFS='|' read -r cursor png hx hy syms; do
+    [ -n "$cursor" ] || continue
+    mapfile -t frames < <(frames_for "$png")
+    local cfg="$dir/x11-$cursor.conf"
     : > "$cfg"
-    while read -r frame; do
-      for size in "${sizes[@]}"; do
-        hot_x=$(x_hotspot "${spec_hx:-$hx}" "$size")
-        hot_y=$(x_hotspot "${spec_hy:-$hy}" "$size")
-        render "$frame" "$size" "$fill" "$work/f-$name_spec-$index.png"
-        printf '%s %s %s %s %s\n' "$size" "$hot_x" "$hot_y" "$work/f-$name_spec-$index.png" "$delay" >> "$cfg"
-        index=$((index + 1))
+    for size in "${sizes[@]}"; do
+      hot_x=$(x_hotspot "$hx" "$size")
+      hot_y=$(x_hotspot "$hy" "$size")
+      for n in "${!frames[@]}"; do
+        printf '%s %s %s %s %s\n' "$size" "$hot_x" "$hot_y" "$dir/png/$cursor-$n-$size.png" "$delay" >> "$cfg"
       done
-    done < <(frames_for "$png")
-    xcursorgen "$cfg" "$target/cursors/$name_spec"
-    if [ -n "$syms" ]; then
-      local alias
-      for alias in $(printf '%s' "$syms" | tr ',' ' '); do
-        ln -sf "$name_spec" "$target/cursors/$alias"
-      done
-    fi
-    count=$((count + 1))
-  done < <(manifest_x11 "$x11")
+    done
+    xcursorgen "$cfg" "$target/cursors/$cursor"
+    local alias
+    for alias in $(printf '%s' "$syms" | tr ',' ' '); do
+      ln -sf "$cursor" "$target/cursors/$alias"
+    done
+  done < "$dir/plan.linux"
 
   cat > "$target/index.theme" <<EOF
 [Icon Theme]
@@ -220,12 +280,11 @@ Name=$theme
 Inherits="hicolor"
 EOF
   chmod -R u+rwX,go+rX "$target"
-  say "linux   $target ($(find "$target/cursors" -maxdepth 1 -type f | wc -l) files, $(find "$target/cursors" -maxdepth 1 -type l | wc -l) aliases, $count cursors)"
+  say "linux   $target ($(find "$target/cursors" -maxdepth 1 -type f | wc -l) files, $(find "$target/cursors" -maxdepth 1 -type l | wc -l) aliases)"
 }
 
 # -------------------------------------------------------------------- Windows
-# cur <out> <file>... with SIZES/HOTXS/HOTYS arrays describing every image.
-write_cur() {
+write_cur() { # out file... with SIZES/HOTXS/HOTYS describing every image
   local out="$1"; shift
   local files=("$@")
   local count=${#files[@]}
@@ -248,8 +307,7 @@ write_cur() {
   cat "${files[@]}" >> "$out"
 }
 
-# ani <out> <cur-file>... as a RIFF/ACON animation at ANI_RATE jiffies.
-write_ani() {
+write_ani() { # out cur-file... -> RIFF/ACON at ani_rate jiffies
   local out="$1"; shift
   local files=("$@")
   local count=${#files[@]}
@@ -292,7 +350,6 @@ HKCU,"Control Panel\Cursors\Schemes","%SCHEME_NAME%",,"%SCHEME_PATHS%"
 HKCU,"Control Panel\Cursors",,0x00020000,"%SCHEME_NAME%"
 '
 
-# Windows role name -> file variable, in the order Windows reads a scheme.
 ROLE_MAP=(
   'Arrow pointer' 'Help help' 'AppStarting work' 'Wait busy' 'crosshair cross'
   'precisionhair cross' 'IBeam text' 'NWPen handwriting' 'SizeNS vert'
@@ -305,64 +362,45 @@ SCHEME_ORDER=(pointer help work busy cross text handwriting vert horz move
               unavailiable dng1)
 
 build_windows() {
-  local name="$1" fill="$2" theme="AppleCursor-$1"
-  local target="$output/windows/$theme" win="$here/configs/$windows_profile.build.toml"
-  local sizes hx hy
-  mapfile -t sizes <<< "$(fallback_win_sizes "$win" | tr ' ' '\n' | sed '/^$/d')"
-  hx=$(fallback_x11_hotspot "$win" x_hotspot)
-  hy=$(fallback_x11_hotspot "$win" y_hotspot)
+  local name="$1" theme="AppleCursor-$1"
+  local dir="$work/$1" target="$output/windows/$theme"
+  local win="$here/configs/$windows_profile.build.toml"
+  local sizes win_sizes cursor png hx hy role override size frame frames n
 
+  win_sizes=($(fallback_sizes "$win" win_sizes))
   rm -rf "$target"; mkdir -p "$target"
-  local decl=() produced=()
-  local name_spec png spec_hx spec_hy role frame size index frame_size
-  while IFS='|' read -r name_spec png spec_hx spec_hy role override; do
-    [ -n "$name_spec" ] || continue
+  local produced=()
+
+  while IFS='|' read -r cursor png hx hy role override; do
+    [ -n "$cursor" ] || continue
     [ -n "$role" ] || continue
-    mapfile -t glyphs < <(frames_for "$png")
-    if [ -n "$override" ]; then
-      # Per-cursor win_sizes from upstream: the animated pointers ship 65 px frames.
-      mapfile -t sizes <<< "$(printf '%s' "$override" | tr ' ' '\n' | sed '/^$/d')"
-    else
-      mapfile -t sizes <<< "$(fallback_win_sizes "$win" | tr ' ' '\n' | sed '/^$/d')"
-    fi
-    if [ ${#glyphs[@]} -gt 1 ]; then
-      # Animated: one image per frame, near 64 px, so Windows can scale it.
-      frame_size=${sizes[0]}
-      if [ -z "$override" ]; then
-        for size in "${sizes[@]}"; do
-          if [ $(( size > ani_target ? size - ani_target : ani_target - size )) -lt \
-               $(( frame_size > ani_target ? frame_size - ani_target : ani_target - frame_size )) ]; then
-            frame_size=$size
-          fi
-        done
-      fi
-      SIZES=("$frame_size"); HOTXS=("$(win_hotspot "${spec_hx:-$hx}" "$frame_size")")
-      HOTYS=("$(win_hotspot "${spec_hy:-$hy}" "$frame_size")")
+    mapfile -t frames < <(frames_for "$png")
+    if [ ${#frames[@]} -gt 1 ]; then
+      # Animated: one image per frame at the pinned size.
+      size=${override%% *}
+      SIZES=("$size")
+      HOTXS=("$(win_hotspot "$hx" "$size")")
+      HOTYS=("$(win_hotspot "$hy" "$size")")
       local parts=()
-      index=0
-      for frame in "${glyphs[@]}"; do
-        render "$frame" "$frame_size" "$fill" "$work/ani-$name_spec-$index.png"
-        write_cur "$work/ani-$name_spec-$index.cur" "$work/ani-$name_spec-$index.png"
-        parts+=("$work/ani-$name_spec-$index.cur")
-        index=$((index + 1))
+      for n in "${!frames[@]}"; do
+        write_cur "$dir/ani-$cursor-$n.cur" "$dir/png/$cursor-$n-$size.png"
+        parts+=("$dir/ani-$cursor-$n.cur")
       done
       write_ani "$target/$role.ani" "${parts[@]}"
       produced+=("$(printf '%s' "$role" | tr 'A-Z' 'a-z')=$role.ani")
     else
-      SIZES=(); HOTXS=(); HOTYS=(); local files=()
-      index=0
-      for size in "${sizes[@]}"; do
+      SIZES=(); HOTXS=(); HOTYS=()
+      local files=()
+      for size in "${win_sizes[@]}"; do
         SIZES+=("$size")
-        HOTXS+=("$(win_hotspot "${spec_hx:-$hx}" "$size")")
-        HOTYS+=("$(win_hotspot "${spec_hy:-$hy}" "$size")")
-        render "${glyphs[0]}" "$size" "$fill" "$work/cur-$name_spec-$index.png"
-        files+=("$work/cur-$name_spec-$index.png")
-        index=$((index + 1))
+        HOTXS+=("$(win_hotspot "$hx" "$size")")
+        HOTYS+=("$(win_hotspot "$hy" "$size")")
+        files+=("$dir/png/$cursor-0-$size.png")
       done
       write_cur "$target/$role.cur" "${files[@]}"
       produced+=("$(printf '%s' "$role" | tr 'A-Z' 'a-z')=$role.cur")
     fi
-  done < <(manifest_windows "$win")
+  done < "$dir/plan.windows"
 
   write_windows_metadata "$target" "$theme" "${produced[@]}"
   say "windows $target ($(find "$target" -name '*.cur' -o -name '*.ani' | wc -l) cursors)"
@@ -421,9 +459,15 @@ else
 fi
 
 mkdir -p "$output"
+want_linux=0; want_windows=0
+[[ " $platforms " == *" linux "* ]] && want_linux=1
+[[ " $platforms " == *" windows "* ]] && want_windows=1
+
 for scheme in "${selected[@]}"; do
   IFS='|' read -r name fill outline comment <<< "$scheme"
-  [[ " $platforms " == *" linux "* ]] && build_linux "$name" "$fill" "$comment"
-  [[ " $platforms " == *" windows "* ]] && build_windows "$name" "$fill"
+  plan_scheme "$name" "$fill" "$outline"
+  render_scheme "$name"
+  [ "$want_linux" = 1 ] && build_linux "$name" "$comment"
+  [ "$want_windows" = 1 ] && build_windows "$name"
 done
 say "done: ${#selected[@]} scheme(s) in $output"

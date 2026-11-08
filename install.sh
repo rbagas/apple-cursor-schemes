@@ -33,8 +33,8 @@ available_schemes() {
     for dir in "$here"/dist/linux/AppleCursor-*; do
       [ -d "$dir" ] && basename "$dir" | sed 's/^AppleCursor-//'
     done
-  elif [ -f "$here/schemes.toml" ]; then
-    sed -n "s/^name = '\(.*\)'$/\1/p" "$here/schemes.toml"
+  elif [ -f "$here/schemes.conf" ]; then
+    awk -F'|' '/^[^#[:space:]]/ { print $1 }' "$here/schemes.conf"
   fi
 }
 
@@ -127,8 +127,8 @@ for scheme in "${schemes[@]}"; do
   src="$here/dist/linux/$theme"
   if [ ! -d "$src" ]; then
     printf '%s is not built yet; building it now...\n' "$theme"
-    python3 "$here/tools/build_schemes.py" --scheme "$scheme" --platforms linux --output "$here/dist" ||
-      die "could not build $theme (needs python3, pycairo and librsvg; see README)"
+    "$here/build.sh" --scheme "$scheme" --platforms linux --output "$here/dist" ||
+      die "could not build $theme (needs rsvg-convert and xcursorgen; see README)"
     src="$here/dist/linux/$theme"
   fi
   [ -d "$src/cursors" ] || die "$src does not look like a cursor theme"

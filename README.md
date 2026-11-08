@@ -21,17 +21,17 @@ animated busy and waiting cursors, and the Windows set of 21 pointer roles.
 
 ## Requirements
 
-Building needs Python with cairo and librsvg bindings:
+Building is plain shell and needs two command line tools:
 
 ```bash
 # Ubuntu / Debian
-sudo apt install python3 python3-cairo python3-gi gir1.2-rsvg-2.0
+sudo apt install librsvg2-bin xcursorgen
 
 # Fedora
-sudo dnf install python3 python3-cairo python3-gobject librsvg2
+sudo dnf install librsvg2-tools xcursorgen
 
 # Arch
-sudo pacman -S python python-cairo python-gobject librsvg
+sudo pacman -S librsvg xorg-xcursorgen
 ```
 
 Installing prebuilt themes needs none of that — they are plain directories.
@@ -39,16 +39,17 @@ Installing prebuilt themes needs none of that — they are plain directories.
 ## Build
 
 ```bash
-python3 tools/build_schemes.py --list          # show the schemes
-python3 tools/build_schemes.py                 # build all, both platforms
-python3 tools/build_schemes.py --scheme Nord   # build one scheme
-python3 tools/build_schemes.py --platforms linux
-python3 tools/preview.py --out dist/preview.png
+./build.sh                          # all schemes, both platforms
+./build.sh --list                   # show the schemes
+./build.sh --scheme Nord            # one scheme
+./build.sh --platforms linux        # one platform
+./preview.sh                        # contact sheet in dist/preview.png
 ```
 
 Output lands in `dist/linux/<theme>/` (XCursor) and `dist/windows/<theme>/`
-(`.cur`, `.ani`, `install.inf`). A full build takes about 20 seconds and writes
-nothing outside `dist/`.
+(`.cur`, `.ani`, `install.inf`). A full build of all seven schemes takes about
+three minutes; one scheme takes about thirty seconds. Nothing is written outside
+`dist/` except the temporary render directory, which is removed on exit.
 
 ## Install on Linux
 
@@ -104,14 +105,10 @@ files with one image per frame, so Windows scales them to your cursor size.
 
 ## Adding a scheme
 
-Add an entry to `schemes.toml` and rebuild:
+Add a line to `schemes.conf` and rebuild:
 
-```toml
-[[scheme]]
-name = 'Solarized-Dark'
-comment = 'Solarized base02 fill'
-fill = '#073642'
-outline = '#93a1a1'
+```
+Solarized-Dark|#073642|#93a1a1|Solarized base02 fill
 ```
 
 `fill` replaces `#00FF00` in the SVGs (the pointer body) and `outline` replaces
@@ -122,15 +119,19 @@ outline = '#93a1a1'
 - `svg/` holds the upstream 256×256 sources; `configs/x.build.toml` and
   `configs/win_*.build.toml` hold upstream's sizes, per-cursor hotspots, symlink
   aliases and Windows role names. Both are used as-is.
-- `tools/build_schemes.py` renders each SVG to every target size with librsvg
-  (instead of cbmp's single bitmap plus resize), writes XCursor files with
-  `tools/xcursor.py`, and writes Windows cursors with `tools/wincursor.py`.
-- Hotspots follow upstream exactly: `floor(hot × size / 256)` for XCursor and
-  `(hot × size − 1) // 256` for Windows. Both are verified against the upstream
-  release; hotspot positions match at all 14 sizes.
-- Pixels are stored premultiplied for XCursor, PNG-compressed for Windows, and
-  animated frames use the Windows tick rate rather than the XCursor millisecond
-  delay.
+- `build.sh` is the whole builder: `rsvg-convert` renders each SVG straight to
+  every target size (instead of cbmp's single bitmap plus resize), `xcursorgen`
+  writes the XCursor files, and the Windows `.cur`/`.ani` containers are emitted
+  with `printf` — headers, offsets and RIFF chunks are little-endian fields.
+- The upstream configs are read with `awk` (one section per cursor, flat keys),
+  so the sizes, hotspots, aliases and Windows role names stay upstream's data.
+- Hotspots: XCursor uses `floor(hot × size / 256)` and matches upstream at all 14
+  sizes. Windows upstream is not consistent to the pixel; this build uses
+  `(hot × size − 1) // 256`, which agrees with the release on 19 of 24 images and
+  differs by at most 1 px elsewhere.
+- Animated pointers ship 40 frames at 65 px — upstream's own `win_sizes = 65`
+  override for those cursors — inside a RIFF `ACON` file at 2 jiffies per frame.
+- Pixels are stored premultiplied for XCursor and PNG-compressed for Windows.
 
 ## Credits and licence
 
@@ -149,10 +150,10 @@ available from the same place as any build.
 Modified in this fork (2026-11-08), as required by GPL-3.0 section 5(a):
 
 - `README.md` rewritten around the scheme set, installers and both platforms.
-- `schemes.toml`, `tools/` and `tests/` added, plus `install.sh`.
+- `schemes.conf`, `build.sh`, `preview.sh`, `install.sh` and `tests/run.sh` added.
 - Upstream's Node/cbmp/ctgen build files (`build.sh`, `package.json`,
   `yarn.lock`, `render.json`, `pling.txt`) and its CI workflow removed, because
-  `tools/build_schemes.py` replaces them.
+  `build.sh` replaces them.
 - `.gitignore` extended for the build output and Python caches.
 
 **Not modified:** every file in `svg/` and `configs/`. Colours are substituted at

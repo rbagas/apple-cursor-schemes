@@ -48,8 +48,8 @@ so it runs in a plain shell: no MSYS2, no WSL, no librsvg, no Node.
 
 It renders one HTML page per cursor size (fixed tiles), screenshots the page once,
 and slices the tiles back out at 4x supersampling — seven Edge runs for a full
-regular profile, about 15 s. `-Profile regular|large|extra-large`, `-Scale` and
-`-Output` behave like the shell builder's options.
+regular profile, under ten seconds. `-Profile regular|large|extra-large`,
+`-Scale` and `-Output` behave like the shell builder's options.
 
 ## Build
 
@@ -149,7 +149,7 @@ familiar size:
 
 | slot | stock / macOS pointers | `-Scale 1` | `-Scale 0.7` |
 | --- | --- | --- | --- |
-| 32 px | 12x19 | 21x29 | 16x22 |
+| 32 px | 12x19 | 21x29 | ~15x21 |
 | 64 px | 25x38 | 37x56 | 27x40 |
 
 ### Machine-wide install with the .inf

@@ -135,9 +135,33 @@ outline = '#93a1a1'
 ## Credits and licence
 
 Cursor artwork: [apple_cursor](https://github.com/ful1e5/apple_cursor) by
-Abdulkaiz Khatri (ful1e5) and contributors, GPL-3.0. See `LICENSE`.
-This fork only changes colours and the build/install tooling, so the result stays
-GPL-3.0. Upstream's `svg/`, `configs/` and `LICENSE` remain untouched, and its
-release notes are in `CHANGELOG.md`. The Node/cbmp/ctgen pipeline (`build.sh`,
-`package.json`, `render.json`) was removed because `tools/build_schemes.py`
-replaces it; `git log` still has it if you want to compare.
+Abdulkaiz Khatri (ful1e5) and contributors, licensed **GPL-3.0**. The full licence
+text is in [`LICENSE`](LICENSE) and is unchanged from upstream.
+
+This repository is a fork of that work and stays under **GPL-3.0**; the added
+build and installer scripts are released under the same licence, so there is no
+mixed-licence question. Both the original sources (`svg/`, `configs/`) and the
+generated cursors come with the tree, so the corresponding source is always
+available from the same place as any build.
+
+### Changes from upstream
+
+Modified in this fork (2026-11-08), as required by GPL-3.0 section 5(a):
+
+- `README.md` rewritten around the scheme set, installers and both platforms.
+- `schemes.toml`, `tools/` and `tests/` added, plus `install.sh`.
+- Upstream's Node/cbmp/ctgen build files (`build.sh`, `package.json`,
+  `yarn.lock`, `render.json`, `pling.txt`) and its CI workflow removed, because
+  `tools/build_schemes.py` replaces them.
+- `.gitignore` extended for the build output and Python caches.
+
+**Not modified:** every file in `svg/` and `configs/`. Colours are substituted at
+build time from the two placeholder colours upstream already uses, so the artwork
+stays attributable byte-for-byte to its authors.
+
+### Trademarks
+
+The cursor shapes are an independent redraw created by the upstream project, not
+Apple's artwork. "macOS" and "Apple" are used descriptively to name the style; this
+project is not affiliated with, endorsed by, or sponsored by Apple Inc. macOS is a
+trademark of Apple Inc. All other product names belong to their respective owners.

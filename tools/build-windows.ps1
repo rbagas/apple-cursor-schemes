@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     Build the Windows cursor sets from the SVG sources without bash, librsvg or
@@ -537,6 +537,16 @@ try {
         }
 
         Write-InstallInf -Target $target -Theme $theme -Files $files
+        # Recorded so install.ps1 can report the scale it actually got, instead of
+        # the one it was asked for.
+        [ordered]@{
+            scheme  = $current.Name
+            profile = $Profile
+            scale   = $Scale
+            sizes   = @($plan.Sizes)
+            cursors = $files.Count
+            builtAt = (Get-Date).ToString('o')
+        } | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $target 'build.json') -Encoding UTF8
         Write-Step "windows $target ($($files.Count) cursors)"
     }
     Write-Host "done: $($selected.Count) scheme(s) in $Output"

@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     instead of a 21-entry list in a different order.
 -   Legacy role names (`crosshair`, `precisionhair`) and non-roles (`Zoom-in`,
     `Zoom-out`) no longer produce stray registry values.
+-   `install.ps1` reports the scale it actually installed, and warns instead of
+    silently ignoring `-Scale` when `dist` already holds a theme built at another
+    scale (the build is recorded in `build.json`).
 
 ## [v2.0.1] - 05 May 2024
 

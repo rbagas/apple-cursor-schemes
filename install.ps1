@@ -172,6 +172,20 @@ function Get-ThemeDirectory {
 
 function Install-Theme {
     $source = Get-ThemeDirectory
+    # A theme on disk was built at whatever -Scale that build used; report that
+    # rather than the number typed this time.
+    $effectiveScale = $Scale
+    $infoFile = Join-Path $source 'build.json'
+    if (Test-Path -LiteralPath $infoFile) {
+        $info = Get-Content -LiteralPath $infoFile -Raw | ConvertFrom-Json
+        if ($null -ne $info.scale) {
+            $effectiveScale = [double]$info.scale
+            if ([math]::Abs($effectiveScale - $Scale) -gt 0.001) {
+                Write-Warning ("dist\windows\$Theme was built at scale $effectiveScale; " +
+                    "the -Scale $Scale was ignored. Add -Build to rebuild it.")
+            }
+        }
+    }
     Save-PreviousState
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     Get-ChildItem -LiteralPath $source -File |
@@ -202,7 +216,7 @@ function Install-Theme {
     [void][NativeCursor]::Apply()
     "installed: $SchemeName"
     "cursors  : $Destination"
-    "scale    : $Scale"
+    "scale    : $effectiveScale"
 }
 
 function Uninstall-Theme {

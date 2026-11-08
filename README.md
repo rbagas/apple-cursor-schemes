@@ -120,27 +120,92 @@ At 1.25 fractional scaling a logical size of 26 asks for 32 px, which is shipped
 
 ## Install on Windows
 
-One command, no admin, no reboot. Run it from the repository root:
+No admin, no reboot, and no MSYS2 or WSL: `install.ps1` builds the theme when it
+is missing, copies it to `%LOCALAPPDATA%\Cursors\<theme>`, registers the scheme
+under `HKCU\Control Panel\Cursors` and applies it with `SPI_SETCURSORS`, so the
+pointers change before the command returns.
+
+### Step by step, from a terminal
+
+**1. Open a terminal.** Press `Win`+`X` and pick **Terminal** (or **Windows
+PowerShell**). Every command below is run in that window.
+
+**2. Get the repository.**
 
 ```powershell
-.\install.ps1                                  # builds if needed, installs, applies
-.\install.ps1 -Scheme Nord -Scale 0.7          # another scheme, macOS-sized glyphs
-.\install.ps1 -Restore                         # put the previous pointers back
-.\install.ps1 -Uninstall                       # remove the scheme
+git clone https://github.com/rbagas/apple-cursor-schemes.git
+cd apple-cursor-schemes
 ```
 
-If PowerShell refuses to run the file, unlock it for this command only:
+No git on the machine? Install it, then repeat the commands above:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+winget install --id Git.Git -e --source winget
 ```
 
-`install.ps1` builds `dist/windows/<theme>` when it is missing (through the Edge
-renderer, so no MSYS2/WSL), copies the cursors to
-`%LOCALAPPDATA%\Cursors\<theme>`, registers the scheme under
-`HKCU\Control Panel\Cursors`, and applies it with `SPI_SETCURSORS` — the change is
-immediate. The pointer settings from before the first install are kept in
-`previous-scheme.json` next to the theme and `-Restore` replays them.
+Or skip git and unpack the ZIP instead — the folder it creates is `apple-cursor-schemes-main`:
+
+```powershell
+Invoke-WebRequest https://github.com/rbagas/apple-cursor-schemes/archive/refs/heads/main.zip -OutFile cursors.zip
+Expand-Archive cursors.zip -DestinationPath . -Force
+cd apple-cursor-schemes-main
+```
+
+**3. Install a scheme.**
+
+```powershell
+.\install.ps1 -Scheme GitHub-Dark -Scale 0.7
+```
+
+If PowerShell answers *"running scripts is disabled on this system"*, run the same
+script for this one command only, which needs no policy change:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Scheme GitHub-Dark -Scale 0.7
+```
+
+The first run builds the cursors with the Edge renderer (a few seconds, seven
+screenshots), so the output looks like this:
+
+```
+building AppleCursor-GitHub-Dark...
+windows regular profile, scale 0.7
+  GitHub-Dark: planning 21 cursors
+  rendered 194 images in 7 pages
+  windows C:\...\dist\windows\AppleCursor-GitHub-Dark\ (21 cursors)
+done: 1 scheme(s) in C:\...\dist\windows
+installed: AppleCursor-GitHub-Dark Cursors
+cursors  : C:\Users\<you>\AppData\Local\Cursors\AppleCursor-GitHub-Dark
+scale    : 0.7
+```
+
+The pointers are already live when it prints `installed:`.
+
+**4. Check that it took.** *Settings → Bluetooth & devices → Mouse → Additional
+mouse options → Pointers*: the Scheme box should read
+`AppleCursor-GitHub-Dark Cursors`. From the terminal:
+
+```powershell
+(Get-Item 'HKCU:\Control Panel\Cursors').GetValue('')
+```
+
+Which prints `AppleCursor-GitHub-Dark Cursors`. Note that the pointer over the
+terminal is whatever the terminal sets for text selection, so move onto the
+desktop to see the arrow.
+
+**5. Change or undo.**
+
+```powershell
+.\install.ps1 -Scheme Nord -Scale 0.7   # any scheme from `Get-Content schemes.conf`
+.\install.ps1 -Size 32                  # also set the Windows pointer size
+.\install.ps1 -Restore                  # the pointers from before the first install
+.\install.ps1 -Uninstall                # remove the scheme and its files
+```
+
+`-Restore` replays the settings saved in `previous-scheme.json` next to the
+installed theme, so it works even after you have played with others.
+
+### Choosing a size
 
 Windows sizes cursors per slot and the artwork fills its canvas more than the
 stock pointers do (21x29 px of arrow in a 32 px slot against 12x19). `-Scale 0.7`
@@ -151,6 +216,11 @@ familiar size:
 | --- | --- | --- | --- |
 | 32 px | 12x19 | 21x29 | ~15x21 |
 | 64 px | 25x38 | 37x56 | 27x40 |
+
+`-Scale` is baked in at build time, so pass it on a run that rebuilds: add
+`-Build` (or delete `dist\windows\<theme>` first) when the theme already exists.
+The installer reports the scale it actually installed, and warns when `-Scale`
+was ignored because a theme was already sitting in `dist`.
 
 ### Machine-wide install with the .inf
 

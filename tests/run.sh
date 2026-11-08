@@ -67,7 +67,10 @@ printf '\nwindows cursors\n'
 is 'role count' "$(find "$win" -name '*.cur' -o -name '*.ani' | wc -l)" 21
 is 'installer present' "$([ -f "$win/install.inf" ] && echo yes || echo no)" yes
 is 'inf registers a scheme' "$(grep -c 'Control Panel\\Cursors\\Schemes' "$win/install.inf")" 1
-is 'inf role entries' "$(grep -c 'Control Panel\\Cursors\",' "$win/install.inf")" 21
+is 'inf role entries' "$(grep -c 'Control Panel\\Cursors\",' "$win/install.inf")" 20
+is 'inf registers the unavailable pointer' "$(grep -c 'Cursors\",No,' "$win/install.inf")" 1
+is 'scheme value lists 17 pointers' \
+  "$(grep 'Cursors\\Schemes' "$win/install.inf" | grep -o '%CUR_DIR%' | wc -l)" 17
 
 move="$win/Move.cur"
 is 'cur type 2' "$(u16 "$move" 2)" 2
@@ -85,6 +88,10 @@ is 'anih frame count' "$(u32 "$work" $((anih + 12)))" 40
 is 'anih bit depth' "$(u32 "$work" $((anih + 28)))" 32
 is 'anih rate (2 jiffies)' "$(u32 "$work" $((anih + 36)))" 2
 is 'ani frame images' "$(grep -aoc icon "$work")" 40
+# Every frame is padded to a word boundary; without that Windows refuses the file.
+first=$(grep -abo icon "$work" | head -1 | cut -d: -f1)
+first_size=$(u32 "$work" $((first + 4)))
+is 'ani frame payload padded' "$(text "$work" $((first + 8 + first_size + first_size % 2)) 4)" icon
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

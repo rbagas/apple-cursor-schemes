@@ -36,6 +36,21 @@ sudo pacman -S librsvg xorg-xcursorgen
 
 Installing prebuilt themes needs none of that — they are plain directories.
 
+### Windows
+
+Nothing above is needed on Windows. `tools/build-windows.ps1` is a PowerShell
+port that rasterises through the Edge renderer that ships with Windows 10 and 11,
+so it runs in a plain shell: no MSYS2, no WSL, no librsvg, no Node.
+
+```powershell
+.\tools\build-windows.ps1 -Scheme GitHub-Dark   # dist\windows\AppleCursor-GitHub-Dark
+```
+
+It renders one HTML page per cursor size (fixed tiles), screenshots the page once,
+and slices the tiles back out at 4x supersampling — seven Edge runs for a full
+regular profile, about 15 s. `-Profile regular|large|extra-large`, `-Scale` and
+`-Output` behave like the shell builder's options.
+
 ## Build
 
 ```bash
@@ -51,6 +66,8 @@ Installing prebuilt themes needs none of that — they are plain directories.
 
 Output lands in `dist/linux/<theme>/` (XCursor) and `dist/windows/<theme>/`
 (`.cur`, `.ani`, `install.inf`). `--jobs` controls how many renders run at once.
+On Windows use `tools/build-windows.ps1` instead; it writes the same
+`dist/windows/<theme>/` payload.
 
 ### Build cache
 
@@ -103,19 +120,46 @@ At 1.25 fractional scaling a logical size of 26 asks for 32 px, which is shipped
 
 ## Install on Windows
 
-1. Extract `dist/windows/<theme>/` (or the release zip for that scheme).
-2. Right-click `install.inf` → **Install**. Accept the elevation prompt if asked.
-3. **Settings → Bluetooth & devices → Mouse → Additional mouse options →
-   Pointers**, choose the `AppleCursor-… Cursors` scheme, then **Apply**.
+One command, no admin, no reboot. Run it from the repository root:
 
-The scheme is registered per user under `Control Panel\Cursors` and the files
-live in `%SystemRoot%\Cursors\<theme> Cursors`. `install.inf` also queues the
-Mouse Properties dialog to open once, so step 3 is usually already on screen.
+```powershell
+.\install.ps1                                  # builds if needed, installs, applies
+.\install.ps1 -Scheme Nord -Scale 0.7          # another scheme, macOS-sized glyphs
+.\install.ps1 -Restore                         # put the previous pointers back
+.\install.ps1 -Uninstall                       # remove the scheme
+```
 
-To remove it, run `uninstall.bat` and pick another scheme in Mouse Properties.
-If SmartScreen or your policy blocks `.inf` installs, copy the folder into
-`%SystemRoot%\Cursors\` yourself and select each `.cur`/`.ani` by hand in the
-same dialog.
+If PowerShell refuses to run the file, unlock it for this command only:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+`install.ps1` builds `dist/windows/<theme>` when it is missing (through the Edge
+renderer, so no MSYS2/WSL), copies the cursors to
+`%LOCALAPPDATA%\Cursors\<theme>`, registers the scheme under
+`HKCU\Control Panel\Cursors`, and applies it with `SPI_SETCURSORS` — the change is
+immediate. The pointer settings from before the first install are kept in
+`previous-scheme.json` next to the theme and `-Restore` replays them.
+
+Windows sizes cursors per slot and the artwork fills its canvas more than the
+stock pointers do (21x29 px of arrow in a 32 px slot against 12x19). `-Scale 0.7`
+shrinks the glyph inside its slot, keeping the hotspot, so it matches the
+familiar size:
+
+| slot | stock / macOS pointers | `-Scale 1` | `-Scale 0.7` |
+| --- | --- | --- | --- |
+| 32 px | 12x19 | 21x29 | 16x22 |
+| 64 px | 25x38 | 37x56 | 27x40 |
+
+### Machine-wide install with the .inf
+
+`dist/windows/<theme>/install.inf` still exists for the classic route: right-click
+→ **Install**, accept the elevation prompt, then pick the `AppleCursor-… Cursors`
+scheme in **Settings → Bluetooth & devices → Mouse → Additional mouse options →
+Pointers**. It copies the files into `%SystemRoot%\Cursors\<theme> Cursors` and
+queues the Mouse Properties dialog so the scheme is one click away. `uninstall.bat`
+in the same folder undoes it.
 
 Each `.cur` carries six sizes (22, 32, 43, 64, 86, 171 px for the default
 profile) with PNG-compressed images, and the animated cursors are RIFF `.ani`
@@ -153,7 +197,16 @@ Solarized-Dark|#073642|#93a1a1|Solarized base02 fill
   differs by at most 1 px elsewhere.
 - Animated pointers ship 40 frames at 65 px — upstream's own `win_sizes = 65`
   override for those cursors — inside a RIFF `ACON` file at 2 jiffies per frame.
+  RIFF pads odd chunks to a word boundary and Windows strictly requires it, so a
+  frame whose payload is odd carries one pad byte.
 - Pixels are stored premultiplied for XCursor and PNG-compressed for Windows.
+- `tools/build-windows.ps1` is the same build for a plain Windows shell: it writes
+  one HTML page per cursor size, screenshots it through the bundled Edge renderer,
+  slices the tiles, and downsamples them 4x in .NET. `install.ps1` then installs a
+  theme per user without elevation, which `.inf`-based installers cannot do.
+- The 17 slots of a `Control Panel\Cursors\Schemes` value are positional, so the
+  `.inf` writes them in the dialog's own order; roles Windows does not show
+  (`Grab`, `Pan`) are set as values but stay out of the scheme string.
 
 ## Credits and licence
 
@@ -173,6 +226,8 @@ Modified in this fork (2026-11-08), as required by GPL-3.0 section 5(a):
 
 - `README.md` rewritten around the scheme set, installers and both platforms.
 - `schemes.conf`, `build.sh`, `preview.sh`, `install.sh` and `tests/run.sh` added.
+- Windows without MSYS2/WSL: `tools/build-windows.ps1` (PowerShell + Edge) and
+  `install.ps1` (per-user install, no elevation) added.
 - Upstream's Node/cbmp/ctgen build files (`build.sh`, `package.json`,
   `yarn.lock`, `render.json`, `pling.txt`) and its CI workflow removed, because
   `build.sh` replaces them.

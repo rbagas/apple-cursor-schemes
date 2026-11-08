@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+### Added
+
+-   `tools/build-windows.ps1`: Windows builder that needs only PowerShell and the
+    Edge renderer that ships with Windows 10/11 — no MSYS2, WSL, librsvg or Node.
+-   `install.ps1`: per-user install with no elevation (`%LOCALAPPDATA%\Cursors`,
+    HKCU scheme, applied immediately with `SPI_SETCURSORS`), plus `-Restore` and
+    `-Uninstall`.
+-   `-Scale` for the Windows build, to shrink the glyph inside its slot; `0.7`
+    matches the apparent size of a stock pointer.
+
+### Fixed
+
+-   Animated `.ani` files are RIFF word aligned again: odd frame payloads now carry
+    the pad byte they need, so `Busy`/`Work` load on Windows instead of silently
+    failing (and taking `SPI_SETCURSORS` with them).
+-   The `No` (unavailable) role is written by `install.inf`; it was missing.
+-   The scheme value is written in the 17 positional slots Windows expects,
+    instead of a 21-entry list in a different order.
+-   Legacy role names (`crosshair`, `precisionhair`) and non-roles (`Zoom-in`,
+    `Zoom-out`) no longer produce stray registry values.
+
 ## [v2.0.1] - 05 May 2024
 
 ### :warning: Breaking Changes

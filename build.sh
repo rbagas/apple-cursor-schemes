@@ -350,8 +350,13 @@ write_ani() { # out cur-file... -> RIFF/ACON at ani_rate jiffies
   local out="$1"; shift
   local files=("$@")
   local count=${#files[@]}
-  local sizes_bytes=$(( 4 * count )) frames=0 file
-  for file in "${files[@]}"; do frames=$(( frames + 8 + $(stat -c%s "$file") )); done
+  local sizes_bytes=$(( 4 * count )) frames=0 file frame_size
+  # RIFF chunks are word aligned. An odd frame carries one pad byte, and the
+  # enclosing LIST has to count it, or Windows refuses the whole file.
+  for file in "${files[@]}"; do
+    frame_size=$(stat -c%s "$file")
+    frames=$(( frames + 8 + frame_size + (frame_size % 2) ))
+  done
   local list_size=$(( 4 + frames ))
   local payload=$(( 4 + (8 + 36) + (8 + sizes_bytes) + (8 + list_size) ))
   exec 3> "$out"
@@ -363,7 +368,9 @@ write_ani() { # out cur-file... -> RIFF/ACON at ani_rate jiffies
   local i; for ((i = 0; i < count; i++)); do le32 "$ani_rate" >&3; done
   le_text LIST >&3; le32 "$list_size" >&3; le_text fram >&3
   for file in "${files[@]}"; do
-    le_text icon >&3; le32 "$(stat -c%s "$file")" >&3; cat "$file" >&3
+    frame_size=$(stat -c%s "$file")
+    le_text icon >&3; le32 "$frame_size" >&3; cat "$file" >&3
+    [ $(( frame_size % 2 )) -eq 0 ] || le8 0 >&3
   done
   exec 3>&-
 }
@@ -390,15 +397,17 @@ HKCU,"Control Panel\Cursors",,0x00020000,"%SCHEME_NAME%"
 '
 
 ROLE_MAP=(
-  'Arrow pointer' 'Help help' 'AppStarting work' 'Wait busy' 'crosshair cross'
-  'precisionhair cross' 'IBeam text' 'NWPen handwriting' 'SizeNS vert'
-  'SizeWE horz' 'Grab move' 'SizeAll move' 'UpArrow alternate' 'Hand link'
-  'Pin pin' 'Person person' 'Pan pan' 'Grabbing grabbing' 'Zoom-in zoom-in'
-  'Zoom-out zoom-out'
+  'Arrow pointer' 'Help help' 'AppStarting work' 'Wait busy' 'Crosshair cross'
+  'IBeam text' 'NWPen handwriting' 'No unavailiable'
+  'SizeNS vert' 'SizeWE horz' 'SizeNWSE dng1' 'SizeNESW dng2' 'SizeAll move'
+  'UpArrow alternate' 'Hand link' 'Pin pin' 'Person person'
+  'Grab grabbing' 'Pan pan'
 )
-SCHEME_ORDER=(pointer help work busy cross text handwriting vert horz move
-              alternate link pin person pan grabbing zoom-in zoom-out dng2
-              unavailiable dng1)
+# Windows resolves the Schemes value positionally, so these are the 17 pointers
+# of the Mouse Properties dialog in its own order. Anything else in the value is
+# ignored, which is why pan/grabbing/zoom stay out of it.
+SCHEME_ORDER=(pointer help work busy cross text handwriting unavailiable vert
+              horz dng1 dng2 move alternate link pin person)
 
 build_windows() {
   local name="$1" theme="AppleCursor-$1"

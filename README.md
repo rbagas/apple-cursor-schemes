@@ -44,14 +44,30 @@ Installing prebuilt themes needs none of that — they are plain directories.
 ./build.sh --scheme Nord            # one scheme
 ./build.sh --platforms linux        # one platform
 ./build.sh --jobs 4                 # cap parallel renders (default: CPU count)
+./build.sh --force                  # rebuild even if a theme is unchanged
+./build.sh --clear-cache            # drop cached renders
 ./preview.sh                        # contact sheet in dist/preview.png
 ```
 
 Output lands in `dist/linux/<theme>/` (XCursor) and `dist/windows/<theme>/`
-(`.cur`, `.ani`, `install.inf`). All seven schemes build in about a minute
-(56 s measured on a 16-thread machine, 8 s per scheme); `--jobs` controls how
-many renders run at once. Nothing is written outside `dist/` except a temporary
-directory that is removed on exit.
+(`.cur`, `.ani`, `install.inf`). `--jobs` controls how many renders run at once.
+
+### Build cache
+
+Rendered images are cached by content hash under
+`${XDG_CACHE_HOME:-~/.cache}/apple-cursor-schemes`, and each built theme carries a
+stamp of every input (palette, configs, scripts). Measured on a 16-thread
+machine:
+
+| Build | Time |
+| --- | --- |
+| Everything, no cache (7 schemes) | 57 s |
+| Same after a colour change in one scheme | 8 s |
+| Nothing changed | 0.05 s |
+
+So iterating on the scripts or a single palette costs seconds, not a minute.
+`--no-cache` ignores the cache, `--clear-cache` deletes it (about 40 MB), and
+`--force` rebuilds a theme whose stamp still matches.
 
 ## Install on Linux
 

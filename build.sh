@@ -22,6 +22,10 @@ wanted=()
 windows_profile="win_rg"
 canvas=256
 jobs=$(nproc 2>/dev/null || echo 4)
+use_cache=1
+clear_cache=0
+force=0
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/apple-cursor-schemes"
 # Windows plays an .ani in jiffies (1/60 s). Upstream ships a 20 ms delay as 2
 # jiffies, so mirror that instead of the config's win_delay.
 ani_rate=2
@@ -44,6 +48,11 @@ while [ $# -gt 0 ]; do
     --windows-profile) windows_profile="win_${2#win_}"; shift 2 ;;
     --jobs) [ $# -ge 2 ] || die '--jobs needs a value'; jobs="$2"; shift 2 ;;
     --jobs=*) jobs="${1#*=}"; shift ;;
+    --no-cache) use_cache=0; shift ;;
+    --force) force=1; shift ;;
+    --clear-cache) clear_cache=1; shift ;;
+    --cache-dir) [ $# -ge 2 ] || die '--cache-dir needs a value'; cache_dir="$2"; shift 2 ;;
+    --cache-dir=*) cache_dir="${1#*=}"; shift ;;
     --list) awk -F'|' '/^[^#[:space:]]/ {printf "%-18s fill %-8s outline %s\n", $1, $2, $3}' "$here/schemes.conf"; exit 0 ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1 (try --help)" ;;
@@ -56,8 +65,19 @@ done
 
 schemes() { awk -F'|' '/^[^#[:space:]]/' "$here/schemes.conf"; }
 
-work=$(mktemp -d "${TMPDIR:-/tmp}/cursor-build-XXXXXX")
+# Rendered images are cached by content hash, so a rebuild after changing one
+# colour only rasterises what actually changed. Consumers read straight from the
+# cache, which also keeps the work directory on the same filesystem as the cache.
+if [ "$clear_cache" = 1 ]; then
+  rm -rf "$cache_dir/render"
+  say "cleared $cache_dir/render"
+fi
+mkdir -p "$cache_dir/render"
+render_root="$cache_dir/render"
+work=$(mktemp -d "$cache_dir/build-XXXXXX")
 trap 'rm -rf "$work"' EXIT
+
+declare -A SVG_HASH=()
 
 # ---------------------------------------------------------------- byte output
 # Little-endian helpers: the Windows containers are written with printf.
@@ -180,30 +200,37 @@ plan_scheme() {
   win_sizes=$(fallback_sizes "$win" win_sizes)
 
   local -A seen=()
+  cache_hit=0; cache_miss=0
   plan_one() { # cursor png hx hy sizes-list animated-size
     local spec="$1" png="$2" spec_hx="$3" spec_hy="$4" list="$5" fixed="$6"
     local -a glyphs=() sizes=()
     mapfile -t glyphs < <(frames_for "$png")
-    local svg size n
+    local svg size n out
     for n in "${!glyphs[@]}"; do
       svg="$svg_out/$spec-$n.svg"
       if [ ! -f "$svg" ]; then
         sed "s/#00FF00/$fill/Ig; s/#0000FF/$outline/Ig" "${glyphs[$n]}" > "$svg"
       fi
+      SVG_HASH["$spec-$n"]=$(sha256sum "$svg" | cut -d' ' -f1)
     done
     if [ -n "$fixed" ]; then sizes=("$fixed"); else read -ra sizes <<< "$list"; fi
-    local out
     for size in "${sizes[@]}"; do
       for n in "${!glyphs[@]}"; do
-        out="$png_out/$spec-$n-$size.png"
+        out="$render_root/${SVG_HASH[$spec-$n]}-$size.png"
         if [ -z "${seen[$out]:-}" ]; then
           seen[$out]=1
-          printf '%s\0%s\0%s\0' "$svg_out/$spec-$n.svg" "$size" "$out" >> "$dir/tasks"
+          if [ "$use_cache" = 1 ] && [ -s "$out" ]; then
+            cache_hit=$((cache_hit + 1))
+          else
+            cache_miss=$((cache_miss + 1))
+            printf '%s\0%s\0%s\0' "$svg_out/$spec-$n.svg" "$size" "$out" >> "$dir/tasks"
+          fi
         fi
       done
     done
   }
 
+  if [ "${PLAN_LINUX:-1}" = 1 ]; then
   while IFS='|' read -r cursor png hx hy syms; do
     [ -n "$cursor" ] || continue
     printf '%s|%s|%s|%s|%s\n' "$cursor" "$png" "${hx:-$(fallback_number "$x11" x_hotspot)}" \
@@ -211,7 +238,9 @@ plan_scheme() {
     plan_one "$cursor" "$png" "${hx:-$(fallback_number "$x11" x_hotspot)}" \
       "${hy:-$(fallback_number "$x11" y_hotspot)}" "$x11_sizes" ""
   done < <(manifest_x11 "$x11")
+  fi
 
+  if [ "${PLAN_WINDOWS:-1}" = 1 ]; then
   while IFS='|' read -r cursor png hx hy role override; do
     [ -n "$cursor" ] || continue
     [ -n "$role" ] || continue
@@ -226,6 +255,7 @@ plan_scheme() {
         "${hy:-$(fallback_number "$win" y_hotspot)}" "$win_sizes" ""
     fi
   done < <(manifest_windows "$win")
+  fi
 }
 
 render_scheme() {
@@ -233,9 +263,18 @@ render_scheme() {
   local count
   count=$(tr -cd '\0' < "$dir/tasks" | wc -c)
   count=$(( count / 3 ))
-  [ "$count" -gt 0 ] || { say 'nothing to render'; return; }
+  if [ "$count" -eq 0 ]; then
+    say "rendered 0 images, $cache_hit reused from cache"
+    return
+  fi
   tr '\0' '\n' < "$dir/tasks" | xargs -d '\n' -n 3 -P "$jobs" "$here/lib/render.sh"
-  say "rendered $count images with $jobs parallel jobs"
+  # A killed build can leave a truncated image behind; drop those so the next run
+  # re-renders them instead of caching a broken frame forever.
+  local broken=0 png
+  while IFS= read -r -d '' png; do
+    [ -s "$png" ] || { rm -f "$png"; broken=$((broken + 1)); }
+  done < <(tr '\0' '\n' < "$dir/tasks" | awk 'NR % 3 == 0 { printf "%s\0", $0 }')
+  say "rendered $count images with $jobs jobs, $cache_hit reused from cache${broken:+, $broken broken removed}"
 }
 
 # ------------------------------------------------------------------- XCursor
@@ -258,7 +297,7 @@ build_linux() {
       hot_x=$(x_hotspot "$hx" "$size")
       hot_y=$(x_hotspot "$hy" "$size")
       for n in "${!frames[@]}"; do
-        printf '%s %s %s %s %s\n' "$size" "$hot_x" "$hot_y" "$dir/png/$cursor-$n-$size.png" "$delay" >> "$cfg"
+        printf '%s %s %s %s %s\n' "$size" "$hot_x" "$hot_y" "$render_root/${SVG_HASH[$cursor-$n]}-$size.png" "$delay" >> "$cfg"
       done
     done
     xcursorgen "$cfg" "$target/cursors/$cursor"
@@ -383,7 +422,7 @@ build_windows() {
       HOTYS=("$(win_hotspot "$hy" "$size")")
       local parts=()
       for n in "${!frames[@]}"; do
-        write_cur "$dir/ani-$cursor-$n.cur" "$dir/png/$cursor-$n-$size.png"
+        write_cur "$dir/ani-$cursor-$n.cur" "$render_root/${SVG_HASH[$cursor-$n]}-$size.png"
         parts+=("$dir/ani-$cursor-$n.cur")
       done
       write_ani "$target/$role.ani" "${parts[@]}"
@@ -395,7 +434,7 @@ build_windows() {
         SIZES+=("$size")
         HOTXS+=("$(win_hotspot "$hx" "$size")")
         HOTYS+=("$(win_hotspot "$hy" "$size")")
-        files+=("$dir/png/$cursor-0-$size.png")
+        files+=("$render_root/${SVG_HASH[$cursor-0]}-$size.png")
       done
       write_cur "$target/$role.cur" "${files[@]}"
       produced+=("$(printf '%s' "$role" | tr 'A-Z' 'a-z')=$role.cur")
@@ -446,6 +485,23 @@ echo Removed $theme Cursors. Open Mouse Properties to pick another scheme.
 EOF
 }
 
+# ----------------------------------------------------------------------- stamp
+# Rebuilding a theme that has not changed means reassembling 44 XCursor files and
+# 21 Windows cursors: about six seconds of xcursorgen work per scheme. A stamp of
+# every input lets an unchanged theme be skipped completely.
+stamp_key() { # scheme-line platform config-file
+  { printf '%s|%s\n' "$1" "$2"
+    cat "$3" "$here/lib/render.sh" "$here/build.sh" "$here/schemes.conf"
+  } | sha256sum | cut -d' ' -f1
+}
+
+theme_current() { # dir key
+  [ "$force" = 0 ] || return 1
+  [ -f "$1/.stamp" ] || return 1
+  [ "$(cat "$1/.stamp")" = "$2" ] || return 1
+  [ -e "$1/cursors/left_ptr" ] || [ -e "$1/Pointer.cur" ]
+}
+
 # ------------------------------------------------------------------------ main
 declare -a selected=()
 if [ ${#wanted[@]} -eq 0 ]; then
@@ -465,9 +521,31 @@ want_linux=0; want_windows=0
 
 for scheme in "${selected[@]}"; do
   IFS='|' read -r name fill outline comment <<< "$scheme"
+  linux_dir="$output/linux/AppleCursor-$name"
+  win_dir="$output/windows/AppleCursor-$name"
+  linux_key=$(stamp_key "$scheme" linux "$here/configs/x.build.toml")
+  win_key=$(stamp_key "$scheme" windows "$here/configs/$windows_profile.build.toml")
+
+  need_linux=0; need_win=0
+  [ "$want_linux" = 1 ] && { theme_current "$linux_dir" "$linux_key" || need_linux=1; }
+  [ "$want_windows" = 1 ] && { theme_current "$win_dir" "$win_key" || need_win=1; }
+  if [ "$need_linux" = 0 ] && [ "$need_win" = 0 ]; then
+    say "$name: unchanged, skipped"
+    continue
+  fi
+
+  # Only plan the work that is actually stale.
+  PLAN_LINUX=$([ "$want_linux" = 1 ] && [ "$need_linux" = 1 ] && echo 1 || echo 0)
+  PLAN_WINDOWS=$([ "$want_windows" = 1 ] && [ "$need_win" = 1 ] && echo 1 || echo 0)
   plan_scheme "$name" "$fill" "$outline"
   render_scheme "$name"
-  [ "$want_linux" = 1 ] && build_linux "$name" "$comment"
-  [ "$want_windows" = 1 ] && build_windows "$name"
+  if [ "$need_linux" = 1 ]; then
+    build_linux "$name" "$comment"
+    printf '%s\n' "$linux_key" > "$linux_dir/.stamp"
+  fi
+  if [ "$need_win" = 1 ]; then
+    build_windows "$name"
+    printf '%s\n' "$win_key" > "$win_dir/.stamp"
+  fi
 done
 say "done: ${#selected[@]} scheme(s) in $output"

@@ -1,286 +1,141 @@
-# Apple Cursor
+# Apple Cursor Schemes
 
-![Apple Cursor](https://github.com/ful1e5/apple_cursor/assets/24286590/ad260d52-6534-441b-902d-440cb368b5c9)
+macOS-style cursors in seven colour schemes, for Linux desktops and Windows.
 
-Open source macOS Cursors for `Windows` and `Linux` with _HiDPI Support_ .
+The artwork is [ful1e5/apple_cursor](https://github.com/ful1e5/apple_cursor) (GPL-3.0).
+This repository is a fork: it recolours the original SVGs, builds the cursor
+files without upstream's Node toolchain, and ships an installer.
 
-[![Build](https://github.com/ful1e5/apple_cursor/workflows/build/badge.svg)](https://github.com/ful1e5/apple_cursor/actions?query=workflow%3Abuild)
+| Scheme | Fill | Outline | Look |
+| --- | --- | --- | --- |
+| `macOS` | `#000000` | `#FFFFFF` | upstream, black pointer with white edge |
+| `macOS-White` | `#FFFFFF` | `#000000` | upstream inverted variant |
+| `GitHub-Dark` | `#24292f` | `#FFFFFF` | GitHub Dark v1 graphite |
+| `Nord` | `#4c566a` | `#eceff4` | Nord Polar Night slate |
+| `Dracula` | `#44475a` | `#f8f8f2` | Dracula current-line |
+| `Catppuccin-Mocha` | `#cba6f7` | `#1e1e2e` | Catppuccin mauve |
+| `Tokyo-Night` | `#1a1b26` | `#7aa2f7` | near-black fill, blue edge |
 
-## Notes
+Every scheme is a full theme: 44 cursors, 101 aliases, 14 sizes (16–96 px),
+animated busy and waiting cursors, and the Windows set of 21 pointer roles.
 
--   All cursor's SVG files are found in [svg](./svg) directory or you can also find them on [Figma](https://www.figma.com/file/OZw8Ylb9xPFw9h1uZYSMFa/apple_cursor?type=design&node-id=73%3A2&mode=design&t=dLILPgJJrLKeAcTE-1).
+## Requirements
 
-<!-- If you're interested, you can learn more about "sponsor-spotlight" on
- https://dev.to/ful1e5/lets-give-recognition-to-those-supporting-our-work-on-github-sponsors-b00 -->
-
-![shoutout-sponsors](https://sponsor-spotlight.vercel.app/sponsor?login=ful1e5)
-
--   **2024-04-26**: c684a72e967b58d85492fae5fa68040beae47c10 Partitioned cursor build configuration into multiple files according to platform:
-    `build.toml` -> `configs/win_lg.build.toml`, `configs/win_rg.build.toml`, `configs/win_xl.build.toml`, `configs/x.build.toml`.
--   **2024-02-23**: 07767c24b0c5dbf912cf37350b86adc11671a18e `bitmaps` directory removed, and `macOS Monterey` cursors deprecated.
-
----
-
-![macOS](https://github.com/ful1e5/apple_cursor/assets/24286590/07018988-36ee-4913-adc7-365854629a20)
-![macOS white](https://github.com/ful1e5/apple_cursor/assets/24286590/1d2bcdf5-d3d7-420a-8dae-68c31b191216)
-
-## Cursor Sizes
-
-### Xcursor Sizes:
-
-<kbd>16</kbd>
-<kbd>20</kbd>
-<kbd>22</kbd>
-<kbd>24</kbd>
-<kbd>28</kbd>
-<kbd>32</kbd>
-<kbd>40</kbd>
-<kbd>48</kbd>
-<kbd>56</kbd>
-<kbd>64</kbd>
-<kbd>72</kbd>
-<kbd>80</kbd>
-<kbd>88</kbd>
-<kbd>96</kbd>
-
-### Windows Cursor Size:
-
-| size | Regular (× ²⁄₃) | Large (× ⁴⁄₅) | Extra-Large (× 1) |
-| ---: | --------------: | ------------: | ----------------: |
-|   32 |     21.333 → 22 |     25.6 → 26 |                32 |
-|   48 |              32 |     38.4 → 39 |                48 |
-|   64 |     42.666 → 43 |     51.2 → 52 |                64 |
-|   96 |              64 |     76.8 → 77 |                96 |
-|  128 |     85.333 → 86 |   102.4 → 103 |               128 |
-|  256 |   170.666 → 171 |   204.8 → 205 |               256 |
-
-## Colors
-
-### Default
-
--   Base Color - `#000000` (Black)
--   Outline Color - `#FFFFFF` (White)
-
-### White
-
--   Base Color - `#FFFFFF` (White)
--   Outline Color - `#000000` (Black)
-
-## How to get it
-
-You can download latest `stable` & `development` releases from
-[Release Page](https://github.com/ful1e5/apple_cursor/releases).
-
-### Packages
-
-> **Note**
-> If you're having trouble with the packages please submit a request to the package maintainer
-> before creating an issue.
-
-#### Arch Linux/Manjaro
-
-Arch Linux/Manjaro users can install from the [AUR](https://aur.archlinux.org/packages/apple_cursor)
-currently maintained by [_ful1e5_](https://aur.archlinux.org/account/ful1e5) &
-[_Grelek_](https://aur.archlinux.org/account/Grelek) .
-Can be installed via Pamac (preinstalled in Manjaro), Paru or any other
-[AUR helper](https://wiki.archlinux.org/index.php/AUR_helpers).
+Building needs Python with cairo and librsvg bindings:
 
 ```bash
-paru -S apple_cursor
+# Ubuntu / Debian
+sudo apt install python3 python3-cairo python3-gi gir1.2-rsvg-2.0
+
+# Fedora
+sudo dnf install python3 python3-cairo python3-gobject librsvg2
+
+# Arch
+sudo pacman -S python python-cairo python-gobject librsvg
 ```
 
-#### openSUSE Tumbleweed
+Installing prebuilt themes needs none of that — they are plain directories.
 
-openSUSE Tumbleweed users can install with `1 CLick Install` on [openSUSE Software](https://software.opensuse.org/package/apple_cursor?search_term=apple_cursor)
-or by adding the repository and installing the `apple_cursor` package, maintained by [_astra_](https://build.opensuse.org/users/astra)
+## Build
 
 ```bash
-sudo zypper addrepo https://download.opensuse.org/repositories/home:/astra/openSUSE_Tumbleweed home:astra/Tumbleweed
-sudo zyper install apple_cursor
+python3 tools/build_schemes.py --list          # show the schemes
+python3 tools/build_schemes.py                 # build all, both platforms
+python3 tools/build_schemes.py --scheme Nord   # build one scheme
+python3 tools/build_schemes.py --platforms linux
+python3 tools/preview.py --out dist/preview.png
 ```
 
-## Installing Apple Cursor
+Output lands in `dist/linux/<theme>/` (XCursor) and `dist/windows/<theme>/`
+(`.cur`, `.ani`, `install.inf`). A full build takes about 20 seconds and writes
+nothing outside `dist/`.
 
-#### Linux/X11
-
-**Installation:**
+## Install on Linux
 
 ```bash
-tar -xvf macOS.tar.gz                      # extract `.tar.gz`
-mv macOS* ~/.icons/                        # Install to local users
-sudo mv macOS* /usr/share/icons/           # Install to all users
+./install.sh                          # install AppleCursor-GitHub-Dark and apply it
+./install.sh --scheme Nord            # a specific scheme (builds it if needed)
+./install.sh --all                    # install all seven, keep the current theme
+./install.sh --list                   # list the schemes
+./install.sh --size 32                # also set the GNOME cursor size
+./install.sh --system --all           # /usr/share/icons instead of ~/.local/share/icons
+./install.sh --uninstall --scheme Nord
 ```
 
-**Uninstallation:**
+`install.sh` copies the theme into `${XDG_DATA_HOME:-~/.local/share}/icons`,
+sets `cursor-theme` through gsettings when a GNOME session is reachable, and
+writes `~/.config/environment.d/90-cursor.conf` so Xwayland, Qt and Electron
+apps match. GTK and GNOME Shell switch immediately; other apps follow at the
+next login. Desktops without gsettings can select the theme in their own cursor
+settings — the directory is all they need.
+
+On the three distributions above the installer is the same; only the build
+dependencies differ, and those are only needed when `dist/` is empty.
+
+Manual install, for any desktop:
 
 ```bash
-rm ~/.icons/macOS*                         # Remove from local users
-sudo rm /usr/share/icons/macOS*            # Remove from all users
+cp -r dist/linux/AppleCursor-Nord ~/.local/share/icons/
 ```
 
-#### Windows
+For a cursor that lands exactly on a native asset instead of being rescaled:
+the themes ship 16, 20, 22, 24, 28, 32, 40, 48, 56, 64, 72, 80, 88 and 96 px.
+At 1.25 fractional scaling a logical size of 26 asks for 32 px, which is shipped.
 
-**Installation:**
+## Install on Windows
 
-1. Unzip `.zip` file
-2. Open unziped directory in Explorer, and **right click** on `install.inf`.
-3. Click 'Install' from the context menu, and authorize the modifications to your system.
-4. Open Control Panel > Personalization and Appearance > Change mouse pointers,
-   and select **macOS Cursors**.
-5. Click '**Apply**'.
+1. Extract `dist/windows/<theme>/` (or the release zip for that scheme).
+2. Right-click `install.inf` → **Install**. Accept the elevation prompt if asked.
+3. **Settings → Bluetooth & devices → Mouse → Additional mouse options →
+   Pointers**, choose the `AppleCursor-… Cursors` scheme, then **Apply**.
 
-**Uninstallation:**
+The scheme is registered per user under `Control Panel\Cursors` and the files
+live in `%SystemRoot%\Cursors\<theme> Cursors`. `install.inf` also queues the
+Mouse Properties dialog to open once, so step 3 is usually already on screen.
 
-Run the `uninstall.bat` script packed with the `.zip` archive
+To remove it, run `uninstall.bat` and pick another scheme in Mouse Properties.
+If SmartScreen or your policy blocks `.inf` installs, copy the folder into
+`%SystemRoot%\Cursors\` yourself and select each `.cur`/`.ani` by hand in the
+same dialog.
 
-**OR** follow these steps:
+Each `.cur` carries six sizes (22, 32, 43, 64, 86, 171 px for the default
+profile) with PNG-compressed images, and the animated cursors are RIFF `.ani`
+files with one image per frame, so Windows scales them to your cursor size.
 
-1. Go to **Registry Editor** by typing the same in the _start search box_.
-2. Expand `HKEY_CURRENT_USER` folder and expand `Control Panel` folder.
-3. Go to `Cursors` folder and click on `Schemes` folder - all the available custom cursors that are
-   installed will be listed here.
-4. **Right Click** on the name of cursor file you want to uninstall; for eg.: _macOS Cursors_ and
-   click `Delete`.
-5. Click '**yes**' when prompted.
+## Adding a scheme
 
-## Build From Source
+Add an entry to `schemes.toml` and rebuild:
 
-### Prerequisites
-
--   Python version 3.7 or higher
--   [clickgen](https://github.com/ful1e5/clickgen)>=2.2.2 (`pip install clickgen`)
--   [yarn](https://github.com/yarnpkg/yarn)
-
-### Quick start
-
-1. Install [build prerequisites](#prerequisites) on your system
-2. `git clone https://github.com/ful1e5/apple_cursor`
-3. `cd apple_cursor`
-4. `yarn install`
-5. `yarn generate`
-6. See [Installing Apple Cursor](#installing-apple-cursor).
-
-### Getting Started
-
-Once you have the [build prerequisites](#prerequisites) installed, You can personalize colors,
-customize sizes, change target platforms, and more. This process involves using external tools,
-as this repository only contains SVG files and configuration for these tools:
-
--   [cbmp](https://github.com/ful1e5/cbmp): Used for customizing colors and generating PNG files.
--   [ctgen](https://github.com/ful1e5/clickgen): Used for customizing sizes and building XCursor and Windows Cursors.
-
-You can refer to the README of each tool for more information on their command-line options.
-
-#### Crafting Your Apple Cursor
-
-The process of creating custom cursor themes involves two main steps:
-
-1. Rendering SVG files to PNG files.
-2. Building cursor themes from PNG files.
-
-#### Customize Colors
-
-`cbmp` provides three options for changing colors:
-
-1. `-bc`: Base color, which replaces the `#00FF00` color in the SVG.
-2. `-oc`: Outlined color, which replaces the `#0000FF` color in the SVG.
-3. `-wc` (optional): Watch Background color, which replaces the `#FF0000` color in the SVG.
-
-```bash
-npx cbmp [...] -bc '<hex>' -oc '<hex>' -wc '<hex>'
+```toml
+[[scheme]]
+name = 'Solarized-Dark'
+comment = 'Solarized base02 fill'
+fill = '#073642'
+outline = '#93a1a1'
 ```
 
-Alternatively, you can provide a JSON configuration file to render SVG files, which contains a sequence of `cbmp` commands:
+`fill` replaces `#00FF00` in the SVGs (the pointer body) and `outline` replaces
+`#0000FF` (the edge). The drop shadow is part of the artwork and stays put.
 
-```bash
-npx cbmp render.json
-```
+## How it works
 
-#### Customize Sizes
+- `svg/` holds the upstream 256×256 sources; `configs/x.build.toml` and
+  `configs/win_*.build.toml` hold upstream's sizes, per-cursor hotspots, symlink
+  aliases and Windows role names. Both are used as-is.
+- `tools/build_schemes.py` renders each SVG to every target size with librsvg
+  (instead of cbmp's single bitmap plus resize), writes XCursor files with
+  `tools/xcursor.py`, and writes Windows cursors with `tools/wincursor.py`.
+- Hotspots follow upstream exactly: `floor(hot × size / 256)` for XCursor and
+  `(hot × size − 1) // 256` for Windows. Both are verified against the upstream
+  release; hotspot positions match at all 14 sizes.
+- Pixels are stored premultiplied for XCursor, PNG-compressed for Windows, and
+  animated frames use the Windows tick rate rather than the XCursor millisecond
+  delay.
 
-##### Customize Windows Cursor size
+## Credits and licence
 
-To build Windows cursor with size `16`:
-
-```bash
-ctgen build.toml -s 16 -p windows -d "bitmaps/macOS" -n "macOS" -c "macOS Cursors with size 16"
-```
-
-You can also customize output directory with `-o` option:
-
-```bash
-ctgen build.toml -s 16 -p windows -d "bitmaps/macOS" -o "out" -n "macOS" -c "macOS Cursors with size 16"
-```
-
-##### Customize XCursor size
-
-To build XCursor with size `16`:
-
-```bash
-ctgen build.toml -s 16 -p x11 -d "bitmaps/macOS" -n "macOS" -c "macOS XCursors with size 16"
-```
-
-You can also assign multiple sizes to `ctgen` for XCursors build:
-
-```bash
-ctgen build.toml -s 16 24 32 -p x11 -d "bitmaps/macOS" -n "macOS" -c "Custom Sizes macOS XCursors"
-```
-
-#### Examples
-
-Lets generate macOS cursor with green and black colors:
-
-```bash
-npx cbmp -d "svg" -o "bitmaps/macOS-Hacker" -bc "#00FE00" -oc "#000000"
-```
-
-After rendering custom color you have to build cursor through `ctgen`:
-
-```bash
-ctgen build.toml -d "bitmaps/macOS-Hacker" -n "macOS-Hacker" -c "Green and Black macOS cursors."
-```
-
-Afterwards, Generated theme can be found in the `themes` directory.
-
-###### macOS Gruvbox
-
-```bash
-npx cbmp -d "svg" -o "bitmaps/macOS-Gruvbox" -bc "#282828" -oc "#EBDBB2" -wc "#000000"
-ctgen build.toml -d "bitmaps/macOS-Gruvbox" -n "macOS-Gruvbox" -c "Groovy macOS cursors."
-```
-
-###### macOS Solarized Dark
-
-```bash
-npx cbmp -d "svg" -o "bitmaps/macOS-Solarized-Dark" -bc "#002b36" -oc "#839496" -wc "#000000"
-ctgen build.toml -d "bitmaps/macOS-Solarized-Dark" -n "macOS-Solarized-Dark" -c "Solarized Dark macOS cursors."
-```
-
-###### macOS Solarized Light
-
-```bash
-npx cbmp -d "svg" -o "bitmaps/macOS-Solarized-Light" -bc "#839496" -oc "#002b36"
-ctgen build.toml -d "bitmaps/macOS-Solarized-Light" -n "macOS-Solarized-Light" -c "Solarized Light macOS cursors."
-```
-
-###### macOS Dracula
-
-```bash
-npx cbmp -d "svg" -o "bitmaas/macOS-Dracula" -bc "#282a36" -oc "#f8f8f2"
-ctgen build.toml -d "bitmaps/macOS-Dracula" -n "macOS-Dracula" -c "Dracula macOS cursors."
-```
-
-## Testing Cursor
-
-There are several websites that allow you to test your cursor states by hovering over buttons. This can be very useful when developing or verifying the behavior of a cursor. The following websites cover many of the most commonly used cursors, although they may not include all available options.
-
--   [Cursor-Test](https://vibhorjaiswal.github.io/Cursor-Test/)
--   [Mozilla CSS Cursor](https://developer.mozilla.org/en-US/docs/Web/CSS/cursor)
-
-For a blueprint for creating XCursors, you may also want to refer to [Cursor-demo](https://wiki.tcl-lang.org/page/Cursor+demo).
-
-## Credit
-
-[Adwaita](https://github.com/GNOME/adwaita-icon-theme) ·
-[Dmz](https://github.com/GalliumOS/dmz-cursor-theme) ·
-[Yaru](https://github.com/ubuntu/yaru)
+Cursor artwork: [apple_cursor](https://github.com/ful1e5/apple_cursor) by
+Abdulkaiz Khatri (ful1e5) and contributors, GPL-3.0. See `LICENSE`.
+This fork only changes colours and the build/install tooling, so the result stays
+GPL-3.0. The original `svg/`, `configs/` and the upstream README remain in the
+tree; upstream's release notes are in `CHANGELOG.md`.

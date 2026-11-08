@@ -1,0 +1,52 @@
+# Colour schemes offered by this fork.
+#
+# Upstream marks the pointer fill with #00FF00 and the outline with #0000FF in
+# every SVG, so a scheme is exactly that pair. Anything not covered by these two
+# colours (the drop shadow) is left to the artwork.
+#
+# name     : suffix of the theme directory, AppleCursor-<name>
+# fill     : replaces #00FF00
+# outline  : replaces #0000FF
+# comment  : shown in the theme's index.theme
+
+[[scheme]]
+name = 'macOS'
+comment = 'Upstream macOS: black fill, white outline'
+fill = '#000000'
+outline = '#FFFFFF'
+
+[[scheme]]
+name = 'macOS-White'
+comment = 'Upstream inverted variant: white fill, black outline'
+fill = '#FFFFFF'
+outline = '#000000'
+
+[[scheme]]
+name = 'GitHub-Dark'
+comment = 'GitHub Dark v1 graphite fill'
+fill = '#24292f'
+outline = '#FFFFFF'
+
+[[scheme]]
+name = 'Nord'
+comment = 'Nord Polar Night slate fill'
+fill = '#4c566a'
+outline = '#eceff4'
+
+[[scheme]]
+name = 'Dracula'
+comment = 'Dracula current-line fill'
+fill = '#44475a'
+outline = '#f8f8f2'
+
+[[scheme]]
+name = 'Catppuccin-Mocha'
+comment = 'Catppuccin Mocha mauve fill'
+fill = '#cba6f7'
+outline = '#1e1e2e'
+
+[[scheme]]
+name = 'Tokyo-Night'
+comment = 'Tokyo Night canvas fill, blue outline'
+fill = '#1a1b26'
+outline = '#7aa2f7'

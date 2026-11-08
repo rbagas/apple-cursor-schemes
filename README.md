@@ -137,5 +137,7 @@ outline = '#93a1a1'
 Cursor artwork: [apple_cursor](https://github.com/ful1e5/apple_cursor) by
 Abdulkaiz Khatri (ful1e5) and contributors, GPL-3.0. See `LICENSE`.
 This fork only changes colours and the build/install tooling, so the result stays
-GPL-3.0. The original `svg/`, `configs/` and the upstream README remain in the
-tree; upstream's release notes are in `CHANGELOG.md`.
+GPL-3.0. Upstream's `svg/`, `configs/` and `LICENSE` remain untouched, and its
+release notes are in `CHANGELOG.md`. The Node/cbmp/ctgen pipeline (`build.sh`,
+`package.json`, `render.json`) was removed because `tools/build_schemes.py`
+replaces it; `git log` still has it if you want to compare.

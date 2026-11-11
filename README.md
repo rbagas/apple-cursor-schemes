@@ -53,9 +53,9 @@ and slices the tiles back out at 4x supersampling — seven Edge runs for a full
 regular profile, under ten seconds. `-Profile regular|large|extra-large`,
 `-Scale` and `-Output` behave like the shell builder's options.
 
-`tools/preview-windows.ps1 -Scheme <name>` draws all 21 pointer roles of a built
-theme into one labelled PNG — the quickest way to judge a colour before installing
-it, and the fastest feedback loop when you are editing `schemes.conf`:
+`tools/preview-windows.ps1 -Scheme <name>` lays all 21 pointer roles of a built
+theme out on one plain grey sheet — the quickest way to judge a colour before
+installing it, and the fastest feedback loop when you are editing `schemes.conf`.
 
 ## Build
 
@@ -279,12 +279,12 @@ GitHub-Dark|#24292f|#FFFFFF|GitHub Dark v1 graphite fill
    ./build.sh --scheme Everforest                               # Linux
    ```
 
-3. **Look before installing.** The Windows builder can draw every role of the
-   theme at the size you actually use, and names each one:
+3. **Look before installing.** The preview tool lays every role of the theme out on
+   a plain grey sheet at the size you actually use, and names each one:
 
    ```powershell
-   .\tools\preview-windows.ps1 -Scheme Everforest          # 64 px tiles
-   .\tools\preview-windows.ps1 -Scheme Everforest -Size 32 # what 100% DPI shows
+   .\tools\preview-windows.ps1 -Scheme Everforest           # 32 px, the real size
+   .\tools\preview-windows.ps1 -Scheme Everforest -Size 64  # closer look
    ```
 
    That writes `dist\windows\preview-Everforest.png`. On Linux, `./preview.sh`
@@ -318,8 +318,8 @@ Contrast matters, hue does not:
   looks like than any zoomed-in view.
 - **Ignore the halo.** The edge is opaque and the shadow is not recoloured, so the
   gradient between body and edge is the artwork, not your palette. Judge the two
-  solid colours, and check both halves of a preview tile — a scheme can read well on
-  dark and vanish on light.
+  solid colours — and check the result over a white window and a dark one, because a
+  scheme that reads well on one can disappear on the other.
 
 ### Change sizes, hotspots and roles
 

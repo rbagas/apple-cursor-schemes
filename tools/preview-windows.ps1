@@ -1,35 +1,35 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Render a contact sheet of the built Windows cursors, so a new colour scheme
-    can be judged before installing it.
+    Render a plain sheet of the built Windows cursors, so a new colour scheme can
+    be judged before installing it.
 
 .DESCRIPTION
-    Draws every pointer role of one or more schemes onto a single PNG, each at the
-    size Windows actually renders it, with the role name underneath. The theme is
-    built first if dist\windows lacks it.
+    Lays every pointer role of one or more schemes onto a neutral grey background,
+    at the size Windows renders it, with the role name underneath. No heading, no
+    caption: it is a sheet of cursors, not a poster. The theme is built first if
+    dist\windows lacks it.
 
 .PARAMETER Scheme
     One or more scheme names from schemes.conf. Default: every scheme.
 
 .PARAMETER Size
-    Tile size in pixels. Default 64, the size a 100% scale desktop asks for.
+    Cursor size in pixels. Default 32, what a 100% DPI desktop asks for.
 
 .PARAMETER Output
-    PNG path. Default: dist\windows\preview-<scheme>.png per scheme, or
-    dist\windows\preview.png when several are rendered.
+    PNG path. Default: dist\windows\preview-<scheme>.png per scheme.
 
 .EXAMPLE
     .\tools\preview-windows.ps1 -Scheme Gruvbox-Dark
 
 .EXAMPLE
-    .\tools\preview-windows.ps1 -Size 32 -Scheme Nord -Output nord-32.png
+    .\tools\preview-windows.ps1 -Size 48 -Scheme Nord -Output nord-48.png
 #>
 [CmdletBinding()]
 param(
     [string[]]$Scheme,
     [ValidateRange(16, 256)]
-    [int]$Size = 64,
+    [int]$Size = 32,
     [ValidateSet('regular', 'large', 'extra-large')]
     [string]$Profile = 'regular',
     [ValidateRange(0.25, 1.0)]
@@ -101,55 +101,36 @@ foreach ($name in $wanted) {
     if (-not $schemes.ContainsKey($name)) { throw "unknown scheme: $name" }
 }
 
+# A plain sheet: neutral grey, one cursor per cell, name underneath. No heading and
+# no frames, so it reads as a sheet of pointers rather than a graphic.
 $cell = $Size
-$label = 20
-$gutter = 16
-$columns = 5
-$pad = 16
+$label = 16
+$gutter = 14
+$columns = 7
+$pad = 14
 $rows = [int][math]::Ceiling($Roles.Count / $columns)
-$header = 58
-# Every role is drawn twice — once on a light tile, once on a dark one — because
-# a dark body disappears on dark and a white body disappears on white.
-$pair = $cell * 2
 
 $tiles = @()
 foreach ($name in $wanted) {
     $directory = Get-ThemeDirectory -Name $name
-    $sheetWidth = $pad * 2 + $columns * ($pair + $gutter) - $gutter
-    $sheetHeight = $header + $rows * ($cell + $label + $gutter) - $gutter + $pad
+    $sheetWidth = $pad * 2 + $columns * ($cell + $gutter) - $gutter
+    $sheetHeight = $pad * 2 + $rows * ($cell + $label + $gutter) - $gutter
     $sheet = [System.Drawing.Bitmap]::new($sheetWidth, $sheetHeight)
     $graphics = [System.Drawing.Graphics]::FromImage($sheet)
     try {
-        $graphics.Clear([System.Drawing.ColorTranslator]::FromHtml('#0d1117'))
-        $graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
+        $graphics.Clear([System.Drawing.ColorTranslator]::FromHtml('#c8c8c8'))
+        $graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAlias
 
-        $titleFont = [System.Drawing.Font]::new('Segoe UI Semibold', 15)
-        $labelFont = [System.Drawing.Font]::new('Segoe UI', 8.5)
-        $smallFont = [System.Drawing.Font]::new('Segoe UI', 9)
-        $titleBrush = [System.Drawing.SolidBrush]::new([System.Drawing.ColorTranslator]::FromHtml('#e6edf3'))
-        $labelBrush = [System.Drawing.SolidBrush]::new([System.Drawing.ColorTranslator]::FromHtml('#8b949e'))
-        $muted = [System.Drawing.SolidBrush]::new([System.Drawing.ColorTranslator]::FromHtml('#586069'))
-        $lightBrush = [System.Drawing.SolidBrush]::new([System.Drawing.ColorTranslator]::FromHtml('#f0f0f0'))
-        $darkBrush = [System.Drawing.SolidBrush]::new([System.Drawing.ColorTranslator]::FromHtml('#161b22'))
-        $edgePen = [System.Drawing.Pen]::new([System.Drawing.ColorTranslator]::FromHtml('#30363d'))
+        $labelFont = [System.Drawing.Font]::new('Segoe UI', 8)
+        $labelBrush = [System.Drawing.SolidBrush]::new([System.Drawing.ColorTranslator]::FromHtml('#3c3c3c'))
         try {
-            $info = $schemes[$name]
-            $graphics.DrawString("AppleCursor-$name", $titleFont, $titleBrush, $pad, 12)
-            $graphics.DrawString(
-                ("$($info.Fill) body, $($info.Outline) edge, drawn at ${cell} px on light and dark"),
-                $smallFont, $labelBrush, $pad, 36)
-
             for ($index = 0; $index -lt $Roles.Count; $index++) {
                 $role = $Roles[$index][0]
                 $file = Join-Path $directory $Roles[$index][1]
                 $column = $index % $columns
                 $row = [int][math]::Floor($index / $columns)
-                $x = $pad + $column * ($pair + $gutter)
-                $y = $header + $row * ($cell + $label + $gutter)
-
-                $graphics.FillRectangle($lightBrush, $x, $y, $cell, $cell)
-                $graphics.FillRectangle($darkBrush, $x + $cell, $y, $cell, $cell)
-                $graphics.DrawRectangle($edgePen, $x, $y, $pair - 1, $cell - 1)
+                $x = $pad + $column * ($cell + $gutter)
+                $y = $pad + $row * ($cell + $label + $gutter)
 
                 $handle = if (Test-Path -LiteralPath $file) {
                     [CursorDraw]::LoadImage([IntPtr]::Zero, $file, 2, $cell, $cell, 0x10)
@@ -157,22 +138,18 @@ foreach ($name in $wanted) {
 
                 if ($handle -ne [IntPtr]::Zero) {
                     $hdc = $graphics.GetHdc()
-                    try {
-                        [void][CursorDraw]::DrawIconEx($hdc, $x, $y, $handle, $cell, $cell, 0, [IntPtr]::Zero, 3)
-                        [void][CursorDraw]::DrawIconEx($hdc, $x + $cell, $y, $handle, $cell, $cell, 0, [IntPtr]::Zero, 3)
-                    } finally { $graphics.ReleaseHdc($hdc) }
+                    try { [void][CursorDraw]::DrawIconEx($hdc, $x, $y, $handle, $cell, $cell, 0, [IntPtr]::Zero, 3) }
+                    finally { $graphics.ReleaseHdc($hdc) }
                     [void][CursorDraw]::DestroyCursor($handle)
                 } else {
-                    $note = if (Test-Path -LiteralPath $file) { 'load failed' } else { 'missing' }
-                    $graphics.DrawString($note, $labelFont, $muted, $x + 4, $y + 4)
+                    $graphics.DrawString($(if (Test-Path -LiteralPath $file) { 'load failed' } else { 'missing' }),
+                        $labelFont, $labelBrush, $x, $y + 4)
                 }
 
-                $graphics.DrawString($role, $labelFont, $labelBrush, $x + 1, $y + $cell + 3)
+                $graphics.DrawString($role, $labelFont, $labelBrush, $x, $y + $cell + 2)
             }
         } finally {
-            $titleFont.Dispose(); $labelFont.Dispose(); $smallFont.Dispose()
-            $titleBrush.Dispose(); $labelBrush.Dispose(); $muted.Dispose()
-            $lightBrush.Dispose(); $darkBrush.Dispose(); $edgePen.Dispose()
+            $labelFont.Dispose(); $labelBrush.Dispose()
         }
     } finally { $graphics.Dispose() }
 

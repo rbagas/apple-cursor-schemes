@@ -10,10 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 -   `Gruvbox-Dark` and `Kanagawa` schemes.
--   `tools/preview-windows.ps1`: labels every Windows role of a built theme into one
-    contact sheet, so a scheme can be judged without installing it.
+-   `tools/preview-windows.ps1`: lays every Windows role of a built theme out on a
+    plain grey sheet, so a scheme can be judged without installing it.
 -   `tools/build-windows.ps1`: Windows builder that needs only PowerShell and the
-    Edge renderer that ships with Windows 10/11 — no MSYS2, WSL, librsvg or Node.
+    Edge renderer that ships with Windows 10/11 â€” no MSYS2, WSL, librsvg or Node.
 -   `install.ps1`: per-user install with no elevation (`%LOCALAPPDATA%\Cursors`,
     HKCU scheme, applied immediately with `SPI_SETCURSORS`), plus `-Restore` and
     `-Uninstall`.
@@ -100,7 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
--   macOSMonterey cursors added 🎊 fixed #66
+-   macOSMonterey cursors added ðŸŽŠ fixed #66
 -   Generate master `bitmaps.zip` inside `bin` directory
 -   `Makefile` binaries targets with variable
 -   pling docs: size and support info updated
@@ -267,7 +267,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -   `build.log` removed feature in **clickgen v1.1.8**
 -   Repack Windows cursors
 -   Removed npm scripts & documentation (`yon` package removed)
--   npm dependencies got upgraded (**dependabot** 🤖 security warning)
+-   npm dependencies got upgraded (**dependabot** ðŸ¤– security warning)
 
 ## [v1.0.6] - 1 November 2020
 
@@ -361,7 +361,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
--   Initial release 🎊
+-   Initial release ðŸŽŠ
 -   Logo and badges
 -   CI/CD Pipelines
 

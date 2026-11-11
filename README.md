@@ -1,6 +1,6 @@
 # Apple Cursor Schemes
 
-macOS-style cursors in seven colour schemes, for Linux desktops and Windows.
+macOS-style cursors in nine colour schemes, for Linux desktops and Windows.
 
 The artwork is [ful1e5/apple_cursor](https://github.com/ful1e5/apple_cursor) (GPL-3.0).
 This repository is a fork: it recolours the original SVGs, builds the cursor
@@ -15,6 +15,8 @@ files without upstream's Node toolchain, and ships an installer.
 | `Dracula` | `#44475a` | `#f8f8f2` | Dracula current-line |
 | `Catppuccin-Mocha` | `#cba6f7` | `#1e1e2e` | Catppuccin mauve |
 | `Tokyo-Night` | `#1a1b26` | `#7aa2f7` | near-black fill, blue edge |
+| `Gruvbox-Dark` | `#282828` | `#ebdbb2` | Gruvbox bg0 body, fg1 edge |
+| `Kanagawa` | `#1f1f28` | `#dcd7ba` | Kanagawa sumiInk body, fujiWhite edge |
 
 Every scheme is a full theme: 44 cursors, 101 aliases, 14 sizes (16–96 px),
 animated busy and waiting cursors, and the Windows set of 21 pointer roles.
@@ -50,6 +52,10 @@ It renders one HTML page per cursor size (fixed tiles), screenshots the page onc
 and slices the tiles back out at 4x supersampling — seven Edge runs for a full
 regular profile, under ten seconds. `-Profile regular|large|extra-large`,
 `-Scale` and `-Output` behave like the shell builder's options.
+
+`tools/preview-windows.ps1 -Scheme <name>` draws all 21 pointer roles of a built
+theme into one labelled PNG — the quickest way to judge a colour before installing
+it, and the fastest feedback loop when you are editing `schemes.conf`:
 
 ## Build
 
@@ -235,16 +241,152 @@ Each `.cur` carries six sizes (22, 32, 43, 64, 86, 171 px for the default
 profile) with PNG-compressed images, and the animated cursors are RIFF `.ani`
 files with one image per frame, so Windows scales them to your cursor size.
 
-## Adding a scheme
+## Make your own scheme
 
-Add a line to `schemes.conf` and rebuild:
+### How a scheme works
 
+Every SVG ships with two placeholder colours: `#00FF00` fills the pointer body,
+`#0000FF` strokes its edge. The builders substitute those two strings in the SVG
+text before rasterising, so a scheme is literally a fill and an outline colour —
+the artwork is never edited, and a new scheme is one line of text.
+
+The drop shadow has neither placeholder, so it is never recoloured. That is why a
+light pointer still reads on a light wallpaper, and why `macOS-White` (white body,
+black edge) works at all.
+
+```conf
+# schemes.conf
+# name|fill|outline|comment
+GitHub-Dark|#24292f|#FFFFFF|GitHub Dark v1 graphite fill
 ```
-Solarized-Dark|#073642|#93a1a1|Solarized base02 fill
-```
 
-`fill` replaces `#00FF00` in the SVGs (the pointer body) and `outline` replaces
-`#0000FF` (the edge). The drop shadow is part of the artwork and stays put.
+### Add one
+
+1. **Append a line to `schemes.conf`.** The name is used for directory names
+   (`AppleCursor-<name>`), the registry scheme name and `dist/windows/<theme>`, so
+   keep it free of `|`, `/`, `\` and leading spaces; hyphens are fine.
+
+   ```conf
+   Everforest|#2d353b|#d3c6aa|Everforest dark bg0 fill
+   ```
+
+2. **Build only that scheme** — a few seconds, not the whole set:
+
+   ```powershell
+   .\tools\build-windows.ps1 -Scheme Everforest -Scale 0.7     # Windows
+   ```
+   ```bash
+   ./build.sh --scheme Everforest                               # Linux
+   ```
+
+3. **Look before installing.** The Windows builder can draw every role of the
+   theme at the size you actually use, and names each one:
+
+   ```powershell
+   .\tools\preview-windows.ps1 -Scheme Everforest          # 64 px tiles
+   .\tools\preview-windows.ps1 -Scheme Everforest -Size 32 # what 100% DPI shows
+   ```
+
+   That writes `dist\windows\preview-Everforest.png`. On Linux, `./preview.sh`
+   renders every scheme in `schemes.conf` into one `dist/preview.png` sheet.
+
+4. **Install it** like any other scheme:
+
+   ```powershell
+   .\install.ps1 -Scheme Everforest -Scale 0.7
+   ```
+   ```bash
+   ./install.sh --scheme Everforest
+   ```
+
+5. **Iterate.** Edit the hex and rebuild: on Windows the build is reused as-is, so
+   add `-Build` (or delete `dist\windows\AppleCursor-Everforest`); on Linux the
+   render cache is keyed by content, so a colour change re-renders by itself.
+
+### Colours that read at 16 px
+
+The edge is 11 units of a 256 canvas — about 1.4 px at 32 px, sub-pixel at 16 px.
+Contrast matters, hue does not:
+
+- **Separate the two in luminance.** `#1f2430` body with `#f2f2f2` edge stays
+  crisp; `#4c566a` body with `#6b7280` edge smears into one blob.
+- **Light pointers need a dark edge.** A white body with a white edge vanishes the
+  moment it crosses light content — the shadow alone cannot hold the shape.
+- **Saturated fills need a dark edge.** `#cba6f7` (Catppuccin mauve) only works
+  against `#1e1e2e`; the reverse pairing is unreadable.
+- **Judge at 32 px, not 64.** The `-Size 32` preview is closer to what the pointer
+  looks like than any zoomed-in view.
+- **Ignore the halo.** The edge is opaque and the shadow is not recoloured, so the
+  gradient between body and edge is the artwork, not your palette. Judge the two
+  solid colours, and check both halves of a preview tile — a scheme can read well on
+  dark and vanish on light.
+
+### Change sizes, hotspots and roles
+
+Two config files hold everything that is not colour, and both are read as-is by
+the builders:
+
+`configs/x.build.toml` — the Linux XCursor theme:
+
+| key | effect |
+| --- | --- |
+| `x11_sizes` | every size rendered into the theme, default 16–96 px |
+| `x11_delay` | milliseconds per animation frame |
+| `x_hotspot` / `y_hotspot` | click point, in the 256×256 canvas |
+| `x11_symlinks` | alias names so KDE, Xfce and GTK apps find the cursor |
+
+`configs/win_rg.build.toml` (and `win_lg`, `win_xl`) — the Windows sets:
+
+| key | effect |
+| --- | --- |
+| `win_sizes` | sizes embedded in each `.cur`; the regular profile is 22, 32, 43, 64, 86, 171 |
+| `win_name` | the Windows role, and the output file name (`Move.cur`) |
+| `win_sizes = 65` on an animated cursor | pins its frames to one size, because an `.ani` frame is a single image |
+
+Hotspots are always given in the 256 canvas; the builders scale them
+(`floor(hot × size / 256)` for XCursor, `(hot × size − 1) // 256` for Windows). No
+generated file is meant to be edited by hand.
+
+The 17 roles of the Mouse Properties dialog map like this:
+
+| dialog | file | dialog | file |
+| --- | --- | --- | --- |
+| Normal Select | `Pointer.cur` | Horizontal Resize | `Horz.cur` |
+| Help Select | `Help.cur` | Diagonal Resize 1 | `Dng1.cur` |
+| Working in Background | `Work.ani` | Diagonal Resize 2 | `Dng2.cur` |
+| Busy | `Busy.ani` | Move | `Move.cur` |
+| Precision Select | `Cross.cur` | Alternate Select | `Alternate.cur` |
+| Text Select | `Text.cur` | Link Select | `Link.cur` |
+| Handwriting | `Handwriting.cur` | Location Select | `Pin.cur` |
+| Unavailable | `Unavailiable.cur` | Person Select | `Person.cur` |
+| Vertical Resize | `Vert.cur` | | |
+
+`Grab` and `Pan` are also written as registry values but the dialog does not list
+them; `Zoom-in.cur` and `Zoom-out.cur` ship as files only.
+
+Windows reads a scheme's 17 slots positionally out of the registry, so the order in
+`$Order` ([install.ps1](install.ps1)) and `SCHEME_ORDER` ([build.sh](build.sh)) is
+fixed. Dropping a role or reordering that list does not remove a pointer — it
+shifts every pointer after it.
+
+### When it does not look right
+
+| What you see | Why | Fix |
+| --- | --- | --- |
+| The colour did not change | Windows reuses `dist\windows\<theme>` if it exists | `-Build`, or delete that folder |
+| The pointer is still the old size | `-Scale` is applied at build time | `-Scale 0.7 -Build` |
+| Scheme missing from the Pointers dialog | The `Schemes` value was never written | `(Get-Item 'HKCU:\Control Panel\Cursors\Schemes').Property` |
+| Busy/Wait frozen, or a cursor that Windows refuses | A `.ani` frame payload not padded to a word boundary | Fixed in both builders — keep the pad byte in any container you write yourself |
+| `running scripts is disabled on this system` | Execution policy is `Restricted` | `powershell -ExecutionPolicy Bypass -File .\install.ps1` |
+| A sheet of colours all look washed out | Judging the shadow, not the edge | Re-check with `-Size 32` and look at the solid fill, not the halo |
+
+### Replacing the shape, not just the colour
+
+Drop a new SVG in `svg/`, keep the 256×256 viewBox, paint the body `#00FF00` and
+the edge `#0000FF`, then point a config section at it (`png = 'my-shape.png'`).
+Shadows are drawn with an SVG filter, so if the new artwork has no shadow layer the
+build still works, it just looks flat. Set the hotspot for the new shape in the same
+section.
 
 ## How it works
 

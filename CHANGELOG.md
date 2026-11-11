@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+-   `Gruvbox-Dark` and `Kanagawa` schemes.
+-   `tools/preview-windows.ps1`: labels every Windows role of a built theme into one
+    contact sheet, so a scheme can be judged without installing it.
 -   `tools/build-windows.ps1`: Windows builder that needs only PowerShell and the
     Edge renderer that ships with Windows 10/11 — no MSYS2, WSL, librsvg or Node.
 -   `install.ps1`: per-user install with no elevation (`%LOCALAPPDATA%\Cursors`,
@@ -16,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `-Uninstall`.
 -   `-Scale` for the Windows build, to shrink the glyph inside its slot; `0.7`
     matches the apparent size of a stock pointer.
+-   A "Make your own scheme" guide: what the two placeholder colours do, how to add
+    and preview one, how to pick colours that survive 16 px, the config keys behind
+    sizes/hotspots/roles, and a symptom table.
 
 ### Fixed
 
